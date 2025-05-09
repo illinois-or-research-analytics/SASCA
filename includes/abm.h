@@ -43,6 +43,7 @@ class ABM {
         std::map<int, int> BuildContinuousNodeMapping(Graph* graph);
         std::map<int, int> ReverseMapping(std::map<int, int> mapping);
         int GetFinalGraphSize(Graph* graph);
+        int GetGeneratorNode(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping);
         void FillInDegreeArr(Graph* graph, const std::map<int, int>& continuous_node_mapping, int* in_degree_arr);
         /* void AssignPeakFitnessValues(Graph* graph, const std::set<int>& nodeset); */
         /* void AssignFitnessLagDuration(Graph* graph, const std::set<int>& nodeset); */
@@ -64,7 +65,8 @@ class ABM {
         template<typename T>
         void AssignFitnessLagDuration(Graph* graph, const T& container) {
             for(auto const& node : container) {
-                int fitness_lag_uniform = this->fitness_lag_duration_uniform_distribution(this->generator);
+                /* int fitness_lag_uniform = this->fitness_lag_duration_uniform_distribution(this->generator); */
+                int fitness_lag_uniform = 0; // MARK: hard coded to be static fitness
                 graph->SetAttribute("fitness_lag_duration", node, fitness_lag_uniform);
             }
         }
@@ -72,7 +74,8 @@ class ABM {
         template<typename T>
         void AssignFitnessPeakDuration(Graph* graph, const T& container) {
             for(auto const& node : container) {
-                int fitness_peak_uniform = this->fitness_peak_duration_uniform_distribution(this->generator);
+                /* int fitness_peak_uniform = this->fitness_peak_duration_uniform_distribution(this->generator); */
+                int fitness_peak_uniform = 1000; // MARK: hard coded to be static fitness
                 graph->SetAttribute("fitness_peak_duration", node, fitness_peak_uniform);
             }
         }

@@ -165,15 +165,15 @@ void ABM::FillRecencyArr(Graph* graph, const std::map<int, int>& continuous_node
         int year_diff = current_year - current_published_year;
         recency_arr[continuous_index] = this->recency_probabilities_map[year_diff];
     }
-    double recency_arr_sum = 0.0;
-    #pragma omp parallel for reduction(+:recency_arr_sum)
-    for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
-        recency_arr_sum += recency_arr[i];
-    }
-    #pragma omp parallel for
-    for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
-        recency_arr[i] /= recency_arr_sum;
-    }
+    /* double recency_arr_sum = 0.0; */
+    /* #pragma omp parallel for reduction(+:recency_arr_sum) */
+    /* for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) { */
+    /*     recency_arr_sum += recency_arr[i]; */
+    /* } */
+    /* #pragma omp parallel for */
+    /* for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) { */
+    /*     recency_arr[i] /= recency_arr_sum; */
+    /* } */
 }
 
 
@@ -267,20 +267,99 @@ void ABM::CalculateScores(int* src_arr, double* dst_arr, int len) {
     }
 }
 
-int ABM::MakeCitations(int* citations, double* score_arr, double* random_weight_arr, int len, int num_citations) {
+int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_mapping, int generator_node, bool is_inside, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations) {
+    std::vector<double> current_score_vec;
+    std::map<int, int> node_to_current_mapping;
+    std::map<int, int> current_to_node_mapping;
+    int local_continuous_node_id = 0;
+    std::set<int> inside_neighborhood;
+    if(graph->GetOutDegree(generator_node) > 0) {
+        for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(generator_node)) {
+            inside_neighborhood.insert(outgoing_neighbor);
+        }
+    }
+    if(graph->GetInDegree(generator_node) > 0) {
+        for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(generator_node)) {
+            inside_neighborhood.insert(incoming_neighbor);
+        }
+    }
+    std::map<int, int> year_count;
+    // initialize year counts first for the candidate set
+    if (is_inside) {
+        for(auto const& neighbor : inside_neighborhood) {
+            int current_published_year = graph->GetAttribute("year", neighbor);
+            int year_diff = current_year - current_published_year;
+            year_count[year_diff] ++;
+        }
+    } else {
+        for(auto const& node_id : graph->GetNodeSet()) {
+            if (!inside_neighborhood.contains(node_id)) {
+                int current_published_year = graph->GetAttribute("year", node_id);
+                int year_diff = current_year - current_published_year;
+                year_count[year_diff] ++;
+            }
+        }
+    }
+
+    if (is_inside) {
+        for(auto const& neighbor : inside_neighborhood) {
+            int continuous_node_id = continuous_node_id[neighbor];
+            int current_published_year = graph->GetAttribute("year", neighbor);
+            int year_diff = current_year - current_published_year;
+            double current_pa = pa_arr[continuous_node_id];
+            double current_rec = rec_arr[continuous_node_id] / year_count[year_diff];
+            double current_fit = fit_arr[continuous_node_id];
+            current_score_vec.push_back((current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight));
+            current_to_node_mapping[local_continuous_node_id] = neighbor;
+            node_to_current_mapping[neighbor] = local_continuous_node_id;
+            local_continuous_node_id ++;
+        }
+    } else {
+        for(auto const& node_id : graph->GetNodeSet()) {
+            if (!inside_neighborhood.contains(node_id)) {
+                int continuous_node_id = continuous_node_id[node_id];
+                int current_published_year = graph->GetAttribute("year", node_id);
+                int year_diff = current_year - current_published_year;
+                double current_pa = pa_arr[continuous_node_id];
+                double current_rec = rec_arr[continuous_node_id] / year_count[year_diff];
+                double current_fit = fit_arr[continuous_node_id];
+                current_score_vec.push_back((current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight));
+                current_to_node_mapping[local_continuous_node_id] = node_id;
+                node_to_current_mapping[node_id] = local_continuous_node_id;
+                local_continuous_node_id ++;
+            }
+        }
+    }
     int actual_num_cited = num_citations;
-    if (len < num_citations) {
-        actual_num_cited = len;
+    if (current_score_vec.size() < num_citations) {
+        actual_num_cited = current_score_vec.size();
     }
     std::random_device rand_dev;
     std::mt19937 generator{rand_dev()};
     for(int i = 0; i < actual_num_cited; i ++) {
-        std::discrete_distribution<int> int_discrete_distribution(score_arr, score_arr + len);
+        std::discrete_distribution<int> int_discrete_distribution(current_score_vec.begin(), current_score_vec.end());
         int current_citation = int_discrete_distribution(generator);
-        citations[i] = current_citation;
-        score_arr[i] = 0.0;
+        citations[i] = current_to_node_mapping[current_citation];
+        current_score_vec[current_citation] = 0.0;
     }
     return actual_num_cited;
+
+}
+
+/* int ABM::MakeCitations(int* citations, double* score_arr, double* random_weight_arr, int len, int num_citations) { */
+    /* int actual_num_cited = num_citations; */
+    /* if (len < num_citations) { */
+    /*     actual_num_cited = len; */
+    /* } */
+    /* std::random_device rand_dev; */
+    /* std::mt19937 generator{rand_dev()}; */
+    /* for(int i = 0; i < actual_num_cited; i ++) { */
+    /*     std::discrete_distribution<int> int_discrete_distribution(score_arr, score_arr + len); */
+    /*     int current_citation = int_discrete_distribution(generator); */
+    /*     citations[i] = current_citation; */
+    /*     score_arr[i] = 0.0; */
+    /* } */
+    /* return actual_num_cited; */
 
     /* double* random_weight_arr = new double[len]; */
     // BEGIN code that scales with size of array
@@ -311,8 +390,14 @@ int ABM::MakeCitations(int* citations, double* score_arr, double* random_weight_
     /* } */
     /* return actual_num_cited; */
     // END code that scales with size of array
-}
+/* } */
 
+int ABM::GetGeneratorNode(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping) {
+    std::uniform_int_distribution<int> generator_uniform_distribution{0, graph->GetNodeSet().size() - 1};
+    int continuous_generator_node = generator_uniform_distribution(this->generator);
+    int generator_node = reverse_continuous_node_mapping.at(continuous_generator_node);
+    return generator_node;
+}
 
 int ABM::ZeroOutNonNeighbors(Graph* graph, const std::map<int, int>& continuous_node_mapping, const std::map<int, int>& reverse_continuous_node_mapping, double* current_score_arr) {
     std::uniform_int_distribution<int> generator_uniform_distribution{0, graph->GetNodeSet().size() - 1};
@@ -540,23 +625,27 @@ int ABM::main() {
             double rec_weight = rec_weight_arr[weight_arr_index];
             double fit_weight = fit_weight_arr[weight_arr_index];
             double alpha = alpha_arr[weight_arr_index];
-            #pragma omp parallel for
-            for(int i = 0; i < current_graph_size; i ++) {
-                current_score_arr[i] = pa_weight * pa_arr[i] + rec_weight * recency_arr[i] + fit_weight * fit_arr[i];
-            }
+            /* #pragma omp parallel for */
+            /* for(int i = 0; i < current_graph_size; i ++) { */
+            /*     current_score_arr[i] = pa_weight * pa_arr[i] + rec_weight * recency_arr[i] + fit_weight * fit_arr[i]; */
+            /* } */
             this->WriteToLogFile("weighted sum array done", Log::debug);
             // cite from the entire graph for outdegree * alpha
             /* std::cout << "assigned outdegree: " << out_degree_arr[weight_arr_index] << std::endl; */
             /* std::cout << "requsted in-neighbor outdegree: " << (int)(out_degree_arr[weight_arr_index] * (1 - alpha)) << std::endl; */
-            int num_citations_outside = out_degree_arr[weight_arr_index] * (1 - alpha);
-            int num_actually_cited = this->MakeCitations(citations, current_score_arr, random_weight_arr, current_graph_size, num_citations_outside);
+            int generator_node = this->GetGeneratorNode(graph, reverse_continuous_node_mapping);
+            int num_citations_inside = out_degree_arr[weight_arr_index] * alpha;
+            int num_actually_cited = this->MakeCitations(graph, generator_node, true, citations, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
+
+            /* int num_actually_cited = this->MakeCitations(citations, current_score_arr, random_weight_arr, current_graph_size, num_citations_outside); */
             this->WriteToLogFile(std::to_string(num_actually_cited) + " cited within neighborhood", Log::debug);
 
-            // cite within generator for outdegree * alpha
-            int num_citations_inside = out_degree_arr[weight_arr_index] - num_actually_cited;
-            int generator_node = this->ZeroOutNonNeighbors(graph, continuous_node_mapping, reverse_continuous_node_mapping, current_score_arr);
-            this->WriteToLogFile("generator 1-hop zerod out", Log::debug);
-            num_actually_cited += this->MakeCitations(citations + num_actually_cited, current_score_arr, random_weight_arr, current_graph_size, num_citations_inside);
+            // cite outside generator for outdegree * 1 - alpha
+            int num_citations_outside = out_degree_arr[weight_arr_index] - num_actually_cited;
+            /* int generator_node = this->ZeroOutNonNeighbors(graph, continuous_node_mapping, reverse_continuous_node_mapping, current_score_arr); */
+            /* this->WriteToLogFile("generator 1-hop zerod out", Log::debug); */
+            /* num_actually_cited += this->MakeCitations(citations + num_actually_cited, current_score_arr, random_weight_arr, current_graph_size, num_citations_inside); */
+            num_actually_cited += this->MakeCitations(graph, generator_node, false, citations, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
             this->WriteToLogFile("outside cited, total citations: " + std::to_string(num_actually_cited), Log::debug);
 
             new_edges_vec.push_back({new_node, generator_node});
