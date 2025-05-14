@@ -42,12 +42,11 @@ class ABM {
         void ReadRecencyProbabilities();
         std::map<int, int> BuildContinuousNodeMapping(Graph* graph);
         std::map<int, int> ReverseMapping(std::map<int, int> mapping);
+        std::vector<int> GetComplement(Graph* graph, const std::vector<int>& base_vec, const std::map<int, int>& reverse_continuous_node_mapping);
         int GetFinalGraphSize(Graph* graph);
-        int GetGeneratorNode(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping);
+        std::vector<int> GetGeneratorNodes(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping);
+        std::vector<int> GetNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::map<int, int>& reverse_continuous_node_mapping);
         void FillInDegreeArr(Graph* graph, const std::map<int, int>& continuous_node_mapping, int* in_degree_arr);
-        /* void AssignPeakFitnessValues(Graph* graph, const std::set<int>& nodeset); */
-        /* void AssignFitnessLagDuration(Graph* graph, const std::set<int>& nodeset); */
-        /* void AssignFitnessPeakDuration(Graph* graph, const std::set<int>& nodeset); */
         void InitializeFitness(Graph* graph);
         void FillFitnessArr(Graph* graph, const std::map<int, int>& continuous_node_mapping, int current_year, int* fitness_arr);
         void FillRecencyArr(Graph* graph, const std::map<int, int>& continuous_node_mapping, int current_year, double* recency_arr);
@@ -57,8 +56,7 @@ class ABM {
         int GetMaxNode(Graph* graph);
         void PopulateOutDegreeArr(int* out_degree_arr, int len);
         void CalculateScores(int* src_arr, double* dst_arr, int len);
-        int MakeCitations(int* citations, double* score_arr, double* random_weight_arr, int len, int num_citations);
-        int ZeroOutNonNeighbors(Graph* graph, const std::map<int, int>& continuous_node_mapping, const std::map<int, int>& reverse_continuous_node_mapping, double* current_score_arr);
+        int MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_mapping, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations);
         /* void InitializeAuthors(Graph* graph, const std::map<int, int>& continuous_node_mapping, std::map<int, std::vector<int>>& author_to_publication_map, std::map<int, std::vector<int>>& number_published_to_author_map, std::map<int, int>& author_remaining_years_map); */
         /* void AgeAuthors(std::map<int, std::vector<int>>& author_to_publication_map, std::map<int, std::vector<int>>& number_published_to_author_map, std::map<int, int>& author_remaining_years_map); */
 
