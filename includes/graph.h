@@ -34,8 +34,13 @@ class Graph {
         const std::set<int>& GetNodeSet() const;
         const std::map<int, std::set<int>>& GetForwardAdjMap() const;
         const std::map<int, std::set<int>>& GetBackwardAdjMap() const;
-        void SetAttribute(std::string attribute_key, int node, int attribute_value);
-        int GetAttribute(std::string attribute_key, int node) const;
+        void SetIntAttribute(std::string attribute_key, int node, int attribute_value);
+        int GetIntAttribute(std::string attribute_key, int node) const;
+        void SetStringAttribute(std::string attribute_key, int node, std::string attribute_value);
+        std::string GetStringAttribute(std::string attribute_key, int node) const;
+        void SetDoubleAttribute(std::string attribute_key, int node, double attribute_value);
+        double GetDoubleAttribute(std::string attribute_key, int node) const;
+        bool HasIntAttribute(std::string attribute_key, int node) const;
         void ParseNodelist();
         void ParseEdgelist();
         int GetInDegree(int node) const;
@@ -43,6 +48,7 @@ class Graph {
         void AddNode(int u);
         void PrintGraph() const;
         void WriteGraph(std::string output_file) const;
+        void WriteAttributes(std::string auxiliary_information_file) const;
 
     private:
 
@@ -53,7 +59,9 @@ class Graph {
     protected:
         std::map<int, std::set<int>> forward_adj_map;
         std::map<int, std::set<int>> backward_adj_map;
-        std::map<std::string, std::map<int, int>> attribute_map;
+        std::map<std::string, std::map<int, int>> int_attribute_map;
+        std::map<std::string, std::map<int, std::string>> string_attribute_map;
+        std::map<std::string, std::map<int, double>> double_attribute_map;
 };
 
 #endif
