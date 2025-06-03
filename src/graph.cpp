@@ -74,7 +74,7 @@ double Graph::GetDoubleAttribute(std::string attribute_key, int node) const {
 }
 
 bool Graph::HasIntAttribute(std::string attribute_key, int node) const {
-    return this->int_attribute_map.at(attribute_key).contains(node);
+    return this->int_attribute_map.contains(attribute_key) && this->int_attribute_map.at(attribute_key).contains(node);
 }
 
 void Graph::AddEdge(std::pair<int, int> edge) {
