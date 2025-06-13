@@ -33,7 +33,7 @@ int ABM::WriteToLogFile(std::string message, Log message_type) {
         log_message_prefix += "s)";
         this->log_file_handle << log_message_prefix << " " << message << '\n';
 
-        if(this->num_calls_to_log_write % 20 == 1) {
+        if(this->num_calls_to_log_write % 1 == 0) {
             std::flush(this->log_file_handle);
         }
         this->num_calls_to_log_write ++;
@@ -171,14 +171,16 @@ void ABM::FillRecencyArr(Graph* graph, const std::map<int, int>& reverse_continu
         }
         year_count[year_diff] ++;
     }
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
     for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
         int node_id = reverse_continuous_node_mapping.at(i);
         int current_published_year = graph->GetIntAttribute("year", node_id);
         int year_diff = current_year - current_published_year;
         recency_arr[i] = (float)this->recency_probabilities_map[year_diff] / year_count[year_diff];
     }
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
     for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
         recency_arr[i] /= unique_year_sum;
     }
@@ -271,7 +273,7 @@ void ABM::PopulateOutDegreeArr(int* out_degree_arr, int len) {
     std::minstd_rand generator{rand_dev()};
     for(int i = 0; i < len; i ++) {
         int index_uniform = outdegree_index_uniform_distribution(generator);
-        out_degree_arr[i] = this->out_degree_bag_vec[index_uniform] - 1;
+        out_degree_arr[i] = this->out_degree_bag_vec[index_uniform];
     }
 }
 
@@ -310,15 +312,18 @@ void ABM::UpdateGraphAttributesGeneratorNodes(Graph* graph, int new_node, const 
 
 void ABM::CalculateScores(int* src_arr, double* dst_arr, int len) {
     double sum = 0;
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
     for(int i = 0; i < len; i ++) {
         dst_arr[i] = pow(src_arr[i], this->gamma) + 1;
     }
-    #pragma omp parallel for reduction(+:sum)
+    // Mark: removed for node-level
+    /* #pragma omp parallel for reduction(+:sum) */
     for(int i = 0; i < len; i ++) {
         sum += dst_arr[i];
     }
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
     for(int i = 0; i < len; i ++) {
         dst_arr[i] /= sum;
     }
@@ -346,10 +351,13 @@ int ABM::MakeSameYearCitations(int num_new_nodes, const std::map<int, int>& reve
     return 1;
 }
 
-int ABM::MakeUniformRandomCitations(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping, int* citations, int num_citations) {
+int ABM::MakeUniformRandomCitations(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping, std::vector<int>& generator_nodes, int* citations, int num_cited_so_far, int num_citations) {
+    if (num_citations == 0) {
+        return 0;
+    }
     int actual_num_cited = num_citations;
     this->WriteToLogFile("trying to uniformly cite " + std::to_string(actual_num_cited), Log::debug);
-    if (graph->GetNodeSet().size() < num_citations) {
+    if (graph->GetNodeSet().size() - num_cited_so_far - generator_nodes.size() < num_citations) {
         actual_num_cited = graph->GetNodeSet().size();
     }
     /* this->WriteToLogFile("can only cite " + std::to_string(actual_num_cited), Log::debug); */
@@ -359,11 +367,17 @@ int ABM::MakeUniformRandomCitations(Graph* graph, const std::map<int, int>& reve
     std::set<int> selected;
     int current_citation_index = 0;
     /* this->WriteToLogFile("currently chose " + std::to_string(selected.size()) + " things", Log::debug); */
-    while(selected.size() != actual_num_cited) {
+    for(int i = 0; i < num_cited_so_far; i ++) {
+        selected.insert(citations[i]);
+    }
+    for(int i = 0; i < generator_nodes.size(); i ++) {
+        selected.insert(generator_nodes.at(i));
+    }
+    while(selected.size() != num_cited_so_far + actual_num_cited + generator_nodes.size()) {
         int current_citation = int_uniform_distribution(generator);
         /* this->WriteToLogFile("picking a node", Log::debug); */
-        if (selected.count(current_citation) == 0) {
-            citations[current_citation_index] = reverse_continuous_node_mapping.at(current_citation);
+        if (selected.count(reverse_continuous_node_mapping.at(current_citation)) == 0) {
+            citations[num_cited_so_far + current_citation_index] = reverse_continuous_node_mapping.at(current_citation);
             selected.insert(current_citation);
             current_citation_index ++;
             /* this->WriteToLogFile("currently chose " + std::to_string(selected.size()) + " things", Log::debug); */
@@ -378,10 +392,14 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     if (num_citations <= 0) {
         return 0;
     }
+    if (candidate_nodes.size() <= 0) {
+        return 0;
+    }
     double* current_scores = new double[candidate_nodes.size() + 1];
     current_scores[candidate_nodes.size()] = 0.0;
     int local_continuous_node_id = 0;
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
     for(size_t i = 0; i < candidate_nodes.size(); i ++) {
         int continuous_node_id = continuous_node_mapping.at(candidate_nodes.at(i));
         double current_pa = pa_arr[continuous_node_id];
@@ -441,10 +459,14 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
         generator_vec.push_back(std::minstd_rand(rand_dev()));
     }
 
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
+    /* std::random_device rand_dev; */
+    std::minstd_rand generator{rand_dev()};
     for(int i = 0; i < candidate_nodes.size(); i ++) {
         std::uniform_real_distribution<double> wrs_uniform_distribution{std::numeric_limits<double>::min(), 1};
-        double wrs_uniform = wrs_uniform_distribution(generator_vec.at(omp_get_thread_num()));
+        /* double wrs_uniform = wrs_uniform_distribution(generator_vec.at(omp_get_thread_num())); */
+        double wrs_uniform = wrs_uniform_distribution(generator);
         if (current_scores[i] != 0) {
             random_weight_arr[i] = pow(wrs_uniform, 1.0/current_scores[i]);
         } else {
@@ -454,7 +476,8 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
 
     // TODO: probably omp parallel it
     std::vector<std::pair<double, int>> element_index_vec(candidate_nodes.size());
-    #pragma omp parallel for
+    // Mark: removed for node-level
+    /* #pragma omp parallel for simd */
     for (size_t i = 0; i < candidate_nodes.size(); i ++) {
         /* element_index_vec.push_back({random_weight_arr[i], candidate_nodes.at(i)}); */
         element_index_vec[i] = {random_weight_arr[i], candidate_nodes.at(i)};
@@ -491,7 +514,8 @@ std::vector<int> ABM::GetComplement(Graph* graph, const std::vector<int>& base_v
     std::vector<int> complement;
     std::uniform_int_distribution<int> generator_uniform_distribution{0, graph->GetNodeSet().size() - 1};
     std::set<int> base_set(base_vec.begin(), base_vec.end());
-    #pragma omp parallel for reduction(merge_int_vecs: complement)
+    // Mark: removed for node-level
+    /* #pragma omp parallel for reduction(merge_int_vecs: complement) */
     for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
         int node_id = reverse_continuous_node_mapping.at(i);
         if (!base_set.contains(node_id)) {
@@ -515,6 +539,44 @@ std::vector<int> ABM::GetGeneratorNodes(Graph* graph, const std::map<int, int>& 
     return generator_nodes;
 }
 
+std::map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::map<int, int>& reverse_continuous_node_mapping) {
+    std::map<int, std::vector<int>> one_and_two_hop_neighborhood_map;
+    std::set<int> visited;
+    int num_hops = 2;
+    for(int i = 0; i < generator_nodes.size(); i ++) {
+        int generator_node = generator_nodes.at(i);
+        std::queue<std::pair<int, int>> to_visit;
+        to_visit.push({generator_node, 0});
+        visited.insert(generator_node);
+        while(!to_visit.empty()) {
+            std::pair<int, int> current_pair = to_visit.front();
+            to_visit.pop();
+            int current_node = current_pair.first;
+            int current_distance = current_pair.second;
+            one_and_two_hop_neighborhood_map[current_distance].push_back(current_node);
+            if (current_distance < num_hops) {
+                if(graph->GetOutDegree(current_node) > 0) {
+                    for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_node)) {
+                        if(!visited.contains(outgoing_neighbor)) {
+                            visited.insert(outgoing_neighbor);
+                            to_visit.push({outgoing_neighbor, current_distance + 1});
+                        }
+                    }
+                }
+                if(graph->GetInDegree(current_node) > 0) {
+                    for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_node)) {
+                        if(!visited.contains(incoming_neighbor)) {
+                            visited.insert(incoming_neighbor);
+                            to_visit.push({incoming_neighbor, current_distance + 1});
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return one_and_two_hop_neighborhood_map;
+}
+
 std::vector<int> ABM::GetNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::map<int, int>& reverse_continuous_node_mapping) {
     std::vector<int> neighborhood;
     std::set<int> visited;
@@ -525,6 +587,7 @@ std::vector<int> ABM::GetNeighborhood(Graph* graph, const std::vector<int>& gene
         int generator_node = generator_nodes.at(i);
         std::queue<std::pair<int, int>> to_visit;
         to_visit.push({generator_node, 0});
+        visited.insert(generator_node);
         while(!to_visit.empty()) {
             std::pair<int, int> current_pair = to_visit.front();
             to_visit.pop();
@@ -743,7 +806,10 @@ int ABM::main() {
         this->FillSameYearSourceNodes(same_year_source_nodes, new_nodes_vec.size());
 
 
+        #pragma omp parallel for reduction(merge_int_pair_vecs: new_edges_vec)
         for(size_t i = 0; i < new_nodes_vec.size(); i ++) {
+            int citations[250];
+            /* int* citations = new int[250]; // maximum size container with 250 assumption for now */
             this->WriteToLogFile("starting node " + std::to_string(i) + "/" + std::to_string(new_nodes_vec.size()), Log::debug);
             int new_node = new_nodes_vec[i];
             /* this->AssignAuthor(graph, new_node, author_to_publication_map, number_published_to_author_map, author_remaining_years_map); */
@@ -753,57 +819,54 @@ int ABM::main() {
             double fit_weight = fit_weight_arr[weight_arr_index];
             double alpha = alpha_arr[weight_arr_index];
             std::vector<int> generator_nodes = this->GetGeneratorNodes(graph, reverse_continuous_node_mapping);
-            this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes);
-            std::vector<int> neighborhood = this->GetNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping);
+            #pragma omp critical
+            {
+                this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes);
+            }
+            /* std::vector<int> neighborhood = this->GetNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping); */
+            std::map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping);
             /* this->WriteToLogFile("neighborhood size is " + std::to_string(neighborhood.size()), Log::debug); */
+
+
+            int num_generator_node_citation = generator_nodes.size(); // should be 1 for now
+            int same_year_citation = same_year_source_nodes.count(i); // could be 0 or 1
+            int num_fully_random_cited_reserved = std::floor(this->fully_random_citations * out_degree_arr[weight_arr_index]); // e.g., 5% of out-degree. some small number
+
+            // now the number of things to cite from distance 1 is the remaining citations * alpha. Call this remaining citations R for later.
+            // unless distance 1 neighborhood is too small
+            int num_citations_inside = std::ceil((out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_fully_random_cited_reserved) * alpha);
+            num_citations_inside = std::min(num_citations_inside, (int)one_and_two_hop_neighborhood_map[1].size());
+
+            // now the number of things to cite from distance 2 is the remaining citations
+            // unless distance 2 neighborhood is too small
+            int num_citations_outside = out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_fully_random_cited_reserved - num_citations_inside;
+            num_citations_outside = std::min(num_citations_outside, (int)one_and_two_hop_neighborhood_map[2].size());
+
+            // if it turns out that the 2-hop neighborhood (including 1 and 2) is small than R from earlier, then the leftover citations get cited randomly from the graph
+            int num_fully_random_cited = out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_citations_inside - num_citations_outside;
+
             int num_actually_cited = 0;
-            if (same_year_source_nodes.count(i)) {
+            if (same_year_citation) {
                 num_actually_cited += this->MakeSameYearCitations(new_nodes_vec.size(), reverse_continuous_node_mapping, citations, current_graph_size);
             }
 
-            /* this->WriteToLogFile(std::to_string(num_actually_cited) + " so far (0 if no same year, 1 if same year)", Log::debug); */
-            int num_citations_inside = std::ceil(out_degree_arr[weight_arr_index] * alpha) - num_actually_cited;
-            /* this->WriteToLogFile(std::to_string(out_degree_arr[weight_arr_index]) + " is target out deg", Log::debug); */
-            /* this->WriteToLogFile(std::to_string(alpha) + " is the alpha", Log::debug); */
-            /* this->WriteToLogFile(std::to_string(num_citations_inside) + " for inside neighborhood target", Log::debug); */
-            /* std::cout << "neighborhood looks like:" << std::endl; */
-            /* for(int i = 0;  i < neighborhood.size(); i ++) { */
-            /*     std::cout << neighborhood.at(i) << " "; */
+            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[1], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
+            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[2], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
+            /* #pragma omp critical */
+            /* { */
+            /* this->WriteToLogFile("new node id:" + std::to_string(new_node), Log::debug); */
+            /* this->WriteToLogFile("assigned out-degree:" + std::to_string(out_degree_arr[weight_arr_index]), Log::debug); */
+            /* this->WriteToLogFile("total num cited not including generator: " + std::to_string(num_actually_cited), Log::debug); */
+            /* this->WriteToLogFile("cited " + std::to_string(num_generator_node_citation) + " as generator", Log::debug); */
+            /* this->WriteToLogFile("cited " + std::to_string(same_year_citation) + " as same year", Log::debug); */
+            /* this->WriteToLogFile("initially reserved " + std::to_string(num_fully_random_cited_reserved) + " as random", Log::debug); */
+            /* this->WriteToLogFile("cited " + std::to_string(num_citations_inside) + " as inside", Log::debug); */
+            /* this->WriteToLogFile("cited " + std::to_string(num_citations_outside) + " as outside", Log::debug); */
+            /* this->WriteToLogFile("cited " + std::to_string(num_fully_random_cited) + " as random", Log::debug); */
+            /* this->WriteToLogFile("1-hop size: " + std::to_string(one_and_two_hop_neighborhood_map[1].size()), Log::debug); */
+            /* this->WriteToLogFile("2-hop size: " + std::to_string(one_and_two_hop_neighborhood_map[2].size()), Log::debug); */
             /* } */
-            /* std::cout << std::endl; */
-            /* std::cout << "neighborhood size is " << std::to_string(neighborhood.size()) << std::endl; */
-            /* for(int i = 0; i < neighborhood.size(); i ++) { */
-            /*     if (neighborhood.at(i) == 4920089) { */
-            /*         std::cout << "neighborhood contains 4920089" << std::endl; */
-            /*         break; */
-            /*     } */
-            /* } */
-            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, neighborhood, citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
-            /* std::cout << "inside target number: " << std::to_string(num_citations_inside) << std::endl; */
-            /* std::cout << "inside actually cited + same year: " << std::to_string(num_actually_cited) << std::endl; */
-            /* this->WriteToLogFile(std::to_string(num_actually_cited) + " cited within neighborhood", Log::debug); */
-            // cite outside generator for outdegree * 1 - alpha
-            int num_citations_outside = out_degree_arr[weight_arr_index] - num_actually_cited;
-            /* std::cout << "outside target number: " << std::to_string(num_citations_outside) << std::endl; */
-            /* this->WriteToLogFile("citing " + std::to_string(num_citations_outside) + " more", Log::debug); */
-            std::vector<int> non_neighborhood = this->GetComplement(graph, neighborhood, reverse_continuous_node_mapping);
-            /* this->WriteToLogFile("non-neighborhood size is " + std::to_string(non_neighborhood.size()), Log::debug); */
-            /* std::cout << "non-neighborhood size is " << std::to_string(non_neighborhood.size()) << std::endl; */
-            /* for(int i = 0; i < non_neighborhood.size(); i ++) { */
-            /*     if (non_neighborhood.at(i) == 4920089) { */
-            /*         std::cout << "non neighborhood contains 4920089" << std::endl; */
-            /*         break; */
-            /*     } */
-            /* } */
-
-            /* if (!neighborhood.contains(4920089) && !non_neighborhood.contains(4920089)) { */
-            /*     std::cout << "4920089 is not in anywhere" << std::endl; */
-            /* std::cout << "generator node is: " << std::to_string(generator_nodes.at(0)) << std::endl; */
-            /* } */
-            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, non_neighborhood, citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
-            /* std::cout << "outside actually cited + inside actually cited + same year: " << std::to_string(num_actually_cited) << std::endl; */
-            // num_actually_cited += this->MakeUniformRandomCitations(graph, reverse_continuous_node_mapping, citations + num_actually_cited, num_citations_outside);
-            /* this->WriteToLogFile("outside cited, total citations: " + std::to_string(num_actually_cited), Log::debug); */
+            num_actually_cited += this->MakeUniformRandomCitations(graph, reverse_continuous_node_mapping, generator_nodes, citations, num_actually_cited, num_fully_random_cited);
 
             for(size_t i = 0; i < generator_nodes.size(); i ++) {
                 new_edges_vec.push_back({new_node, generator_nodes[i]});
@@ -869,7 +932,7 @@ int ABM::main() {
     delete[] fit_weight_arr;
     delete[] alpha_arr;
     delete[] out_degree_arr;
-    delete[] citations;
+    /* delete[] citations; */
     delete[] random_weight_arr;
     delete[] current_score_arr;
 

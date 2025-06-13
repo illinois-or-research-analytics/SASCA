@@ -41,6 +41,10 @@ int main(int argc, char* argv[]) {
         .default_value(double(-1))
         .help("Neighborhood alpha")
         .scan<'g', double>();
+    main_program.add_argument("--fully-random-citations")
+        .default_value(double(0.05))
+        .help("Constant percentage for radom citations")
+        .scan<'g', double>();
     main_program.add_argument("--growth-rate")
         .required()
         .help("Growth rate")
@@ -84,6 +88,7 @@ int main(int argc, char* argv[]) {
     std::string recency_probabilities = main_program.get<std::string>("--recency-probabilities");
     std::string planted_nodes = main_program.get<std::string>("--planted-nodes");
     double alpha = main_program.get<double>("--alpha");
+    double fully_random_citations = main_program.get<double>("--fully-random-citations");
     double preferential_weight = main_program.get<double>("--preferential-weight");
     double recency_weight = main_program.get<double>("--recency-weight");
     double fitness_weight = main_program.get<double>("--fitness-weight");
@@ -95,7 +100,7 @@ int main(int argc, char* argv[]) {
     std::string log_file = main_program.get<std::string>("--log-file");
     int num_processors = main_program.get<int>("--num-processors");
     int log_level = main_program.get<int>("--log-level") - 1; // so that enum is cleaner
-    ABM* abm = new ABM(edgelist, nodelist, out_degree_bag, recency_probabilities, planted_nodes, alpha, preferential_weight, recency_weight, fitness_weight, growth_rate, num_cycles, same_year_proportion, output_file, auxiliary_information_file, log_file, num_processors, log_level);
+    ABM* abm = new ABM(edgelist, nodelist, out_degree_bag, recency_probabilities, planted_nodes, alpha, fully_random_citations, preferential_weight, recency_weight, fitness_weight, growth_rate, num_cycles, same_year_proportion, output_file, auxiliary_information_file, log_file, num_processors, log_level);
     abm->main();
     delete abm;
 }
