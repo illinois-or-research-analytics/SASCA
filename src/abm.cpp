@@ -268,7 +268,7 @@ void ABM::PopulateWeightArrs(double* pa_weight_arr, double* rec_weight_arr, doub
 }
 
 void ABM::PopulateOutDegreeArr(int* out_degree_arr, int len) {
-    std::uniform_int_distribution<int> outdegree_index_uniform_distribution{0, this->out_degree_bag_vec.size() - 1};
+    std::uniform_int_distribution<int> outdegree_index_uniform_distribution{0, (int)(this->out_degree_bag_vec.size() - 1)};
     std::random_device rand_dev;
     std::minstd_rand generator{rand_dev()};
     for(int i = 0; i < len; i ++) {
@@ -298,6 +298,17 @@ void ABM::UpdateGraphAttributesOutDegrees(Graph* graph, int next_node_id, int* o
         int current_node_id = next_node_id + i;
         graph->SetIntAttribute("assigned_out_degree", current_node_id, out_degree_arr[i]);
     }
+}
+
+std::vector<int> ABM::GetGraphAttributesGeneratorNodes(Graph* graph, int new_node) const {
+    std::vector<int> generator_nodes;
+    std::string generator_node_string = graph->GetStringAttribute("generator_node_string", new_node);
+    std::stringstream ss(generator_node_string);
+    std::string current_value;
+    while(std::getline(ss, current_value, ';')) {
+        generator_nodes.push_back(std::stoi(current_value));
+    }
+    return generator_nodes;
 }
 
 void ABM::UpdateGraphAttributesGeneratorNodes(Graph* graph, int new_node, const std::vector<int>& generator_nodes) {
@@ -330,7 +341,7 @@ void ABM::CalculateScores(int* src_arr, double* dst_arr, int len) {
 }
 
 void ABM::FillSameYearSourceNodes(std::set<int>& same_year_source_nodes, int current_year_new_nodes) {
-    int num_same_year_source_nodes = int(current_year_new_nodes * this->same_year_proportion);
+    size_t num_same_year_source_nodes = (size_t)std::floor(current_year_new_nodes * this->same_year_proportion);
     std::random_device rand_dev;
     std::minstd_rand generator{rand_dev()};
     std::uniform_int_distribution<int> int_uniform_distribution(0, current_year_new_nodes - 1);
@@ -352,25 +363,25 @@ int ABM::MakeSameYearCitations(int num_new_nodes, const std::map<int, int>& reve
 }
 
 int ABM::MakeUniformRandomCitations(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping, std::vector<int>& generator_nodes, int* citations, int num_cited_so_far, int num_citations) {
-    if (num_citations == 0) {
+    if (num_citations <= 0) {
         return 0;
     }
     int actual_num_cited = num_citations;
     this->WriteToLogFile("trying to uniformly cite " + std::to_string(actual_num_cited), Log::debug);
-    if (graph->GetNodeSet().size() - num_cited_so_far - generator_nodes.size() < num_citations) {
+    if (graph->GetNodeSet().size() - num_cited_so_far - generator_nodes.size() < (size_t)num_citations) {
         actual_num_cited = graph->GetNodeSet().size();
     }
     /* this->WriteToLogFile("can only cite " + std::to_string(actual_num_cited), Log::debug); */
     std::random_device rand_dev;
     std::minstd_rand generator{rand_dev()};
-    std::uniform_int_distribution<int> int_uniform_distribution(0, graph->GetNodeSet().size() - 1);
+    std::uniform_int_distribution<int> int_uniform_distribution(0, (int)(graph->GetNodeSet().size() - 1));
     std::set<int> selected;
     int current_citation_index = 0;
     /* this->WriteToLogFile("currently chose " + std::to_string(selected.size()) + " things", Log::debug); */
     for(int i = 0; i < num_cited_so_far; i ++) {
         selected.insert(citations[i]);
     }
-    for(int i = 0; i < generator_nodes.size(); i ++) {
+    for(size_t i = 0; i < generator_nodes.size(); i ++) {
         selected.insert(generator_nodes.at(i));
     }
     while(selected.size() != num_cited_so_far + actual_num_cited + generator_nodes.size()) {
@@ -397,7 +408,7 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     }
     double* current_scores = new double[candidate_nodes.size() + 1];
     current_scores[candidate_nodes.size()] = 0.0;
-    int local_continuous_node_id = 0;
+    /* int local_continuous_node_id = 0; */
     // Mark: removed for node-level
     /* #pragma omp parallel for simd */
     for(size_t i = 0; i < candidate_nodes.size(); i ++) {
@@ -409,7 +420,7 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     }
 
     int actual_num_cited = num_citations;
-    if (candidate_nodes.size() < num_citations) {
+    if (candidate_nodes.size() < (size_t)num_citations) {
         actual_num_cited = candidate_nodes.size();
     }
 
@@ -463,7 +474,7 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     /* #pragma omp parallel for simd */
     /* std::random_device rand_dev; */
     std::minstd_rand generator{rand_dev()};
-    for(int i = 0; i < candidate_nodes.size(); i ++) {
+    for(size_t i = 0; i < candidate_nodes.size(); i ++) {
         std::uniform_real_distribution<double> wrs_uniform_distribution{std::numeric_limits<double>::min(), 1};
         /* double wrs_uniform = wrs_uniform_distribution(generator_vec.at(omp_get_thread_num())); */
         double wrs_uniform = wrs_uniform_distribution(generator);
@@ -512,7 +523,7 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
 
 std::vector<int> ABM::GetComplement(Graph* graph, const std::vector<int>& base_vec, const std::map<int, int>& reverse_continuous_node_mapping) {
     std::vector<int> complement;
-    std::uniform_int_distribution<int> generator_uniform_distribution{0, graph->GetNodeSet().size() - 1};
+    std::uniform_int_distribution<int> generator_uniform_distribution{0, (int)(graph->GetNodeSet().size() - 1)};
     std::set<int> base_set(base_vec.begin(), base_vec.end());
     // Mark: removed for node-level
     /* #pragma omp parallel for reduction(merge_int_vecs: complement) */
@@ -527,7 +538,7 @@ std::vector<int> ABM::GetComplement(Graph* graph, const std::vector<int>& base_v
 
 std::vector<int> ABM::GetGeneratorNodes(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping) {
     std::vector<int> generator_nodes;
-    std::uniform_int_distribution<int> generator_uniform_distribution{0, graph->GetNodeSet().size() - 1};
+    std::uniform_int_distribution<int> generator_uniform_distribution{0, (int)(graph->GetNodeSet().size() - 1)};
     int num_generator_nodes = 1;
     std::random_device rand_dev;
     std::minstd_rand generator{rand_dev()};
@@ -543,7 +554,7 @@ std::map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph* graph, c
     std::map<int, std::vector<int>> one_and_two_hop_neighborhood_map;
     std::set<int> visited;
     int num_hops = 2;
-    for(int i = 0; i < generator_nodes.size(); i ++) {
+    for(size_t i = 0; i < generator_nodes.size(); i ++) {
         int generator_node = generator_nodes.at(i);
         std::queue<std::pair<int, int>> to_visit;
         to_visit.push({generator_node, 0});
@@ -580,10 +591,10 @@ std::map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph* graph, c
 std::vector<int> ABM::GetNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::map<int, int>& reverse_continuous_node_mapping) {
     std::vector<int> neighborhood;
     std::set<int> visited;
-    std::uniform_int_distribution<int> generator_uniform_distribution{0, graph->GetNodeSet().size() - 1};
+    std::uniform_int_distribution<int> generator_uniform_distribution{0, (int)(graph->GetNodeSet().size() - 1)};
     int num_hops = 1;
     /* std::cout << "getting 2-hop neighborhood from: " << generator_nodes.at(0) << std::endl; */
-    for(int i = 0; i < generator_nodes.size(); i ++) {
+    for(size_t i = 0; i < generator_nodes.size(); i ++) {
         int generator_node = generator_nodes.at(i);
         std::queue<std::pair<int, int>> to_visit;
         to_visit.push({generator_node, 0});
@@ -731,8 +742,8 @@ int ABM::main() {
     this->WriteToLogFile("alloc 6", Log::debug);
     double* current_score_arr = new double[final_graph_size];
     this->WriteToLogFile("alloc 7", Log::debug);
-    int* citations = new int[250]; // maximum size container with 250 assumption for now
-    this->WriteToLogFile("alloc 8", Log::debug);
+    /* int* citations = new int[250]; // maximum size container with 250 assumption for now */
+    /* this->WriteToLogFile("alloc 8", Log::debug); */
 
     // the first new agent node has index 0 but is actually index initial_graph_size in the continuous mapping
     double* pa_weight_arr = new double[final_graph_size - initial_graph_size];
@@ -806,8 +817,15 @@ int ABM::main() {
         this->FillSameYearSourceNodes(same_year_source_nodes, new_nodes_vec.size());
 
 
+        for(size_t i = 0; i < new_nodes_vec.size(); i ++) {
+            int new_node = new_nodes_vec[i];
+            std::vector<int> generator_nodes = this->GetGeneratorNodes(graph, reverse_continuous_node_mapping);
+            this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes);
+        }
+
         #pragma omp parallel for reduction(merge_int_pair_vecs: new_edges_vec)
         for(size_t i = 0; i < new_nodes_vec.size(); i ++) {
+            std::vector<std::pair<int, int>> local_new_edges_vec;
             int citations[250];
             /* int* citations = new int[250]; // maximum size container with 250 assumption for now */
             this->WriteToLogFile("starting node " + std::to_string(i) + "/" + std::to_string(new_nodes_vec.size()), Log::debug);
@@ -818,12 +836,16 @@ int ABM::main() {
             double rec_weight = rec_weight_arr[weight_arr_index];
             double fit_weight = fit_weight_arr[weight_arr_index];
             double alpha = alpha_arr[weight_arr_index];
-            std::vector<int> generator_nodes = this->GetGeneratorNodes(graph, reverse_continuous_node_mapping);
-            #pragma omp critical
-            {
-                this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes);
-            }
             /* std::vector<int> neighborhood = this->GetNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping); */
+            /* std::vector<int> generator_nodes = this->GetGeneratorNodes(graph, reverse_continuous_node_mapping); */
+            /* #pragma omp critical */
+            /* { */
+            /*     this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes); */
+            /*     generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node); */
+            /* } */
+            std::vector<int> generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node);
+
+            /* std::vector<int> generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node); */
             std::map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping);
             /* this->WriteToLogFile("neighborhood size is " + std::to_string(neighborhood.size()), Log::debug); */
 
@@ -868,18 +890,19 @@ int ABM::main() {
             /* } */
             num_actually_cited += this->MakeUniformRandomCitations(graph, reverse_continuous_node_mapping, generator_nodes, citations, num_actually_cited, num_fully_random_cited);
 
-            for(size_t i = 0; i < generator_nodes.size(); i ++) {
-                new_edges_vec.push_back({new_node, generator_nodes[i]});
+            for(size_t j = 0; j < generator_nodes.size(); j ++) {
+                local_new_edges_vec.push_back({new_node, generator_nodes[j]});
             }
-            for(int i = 0; i < num_actually_cited; i ++) {
+            for(int j = 0; j < num_actually_cited; j ++) {
                 /* if(citations[i] == current_max_pa_node_id) { */
                 /*     this->WriteToLogFile("max indegree pa node id cited", Log::debug); */
                 /* } */
                 /* if(citations[i] == 4920089) { */
                 /*     std::cout << "4920089 cited" << std::endl; */
                 /* } */
-                new_edges_vec.push_back({new_node, citations[i]});
+                local_new_edges_vec.push_back({new_node, citations[j]});
             }
+            new_edges_vec.insert(new_edges_vec.end(), local_new_edges_vec.begin(), local_new_edges_vec.end());
             /* this->WriteToLogFile("edge vec now has " + std::to_string(new_edges_vec.size()) + " edges", Log::debug); */
         }
 
@@ -901,8 +924,8 @@ int ABM::main() {
         /* this->AgeAuthors(author_to_publication_map, number_published_to_author_map, author_remaining_years_map); */
         new_nodes_vec.clear();
         new_edges_vec.clear();
-        this->WriteToLogFile("writing temp graph", Log::info);
-        graph->WriteGraph(this->output_file + "_" + std::to_string(current_year));
+        /* this->WriteToLogFile("writing temp graph", Log::info); */
+        /* graph->WriteGraph(this->output_file + "_" + std::to_string(current_year)); */
     }
 
     this->WriteToLogFile("finished sim", Log::info);

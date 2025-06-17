@@ -47,6 +47,7 @@ class ABM {
         std::vector<int> GetComplement(Graph* graph, const std::vector<int>& base_vec, const std::map<int, int>& reverse_continuous_node_mapping);
         int GetFinalGraphSize(Graph* graph);
         std::vector<int> GetGeneratorNodes(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping);
+        std::vector<int> GetGraphAttributesGeneratorNodes(Graph* graph, int new_node) const;
         std::vector<int> GetNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::map<int, int>& reverse_continuous_node_mapping);
         std::map<int, std::vector<int>> GetOneAndTwoHopNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::map<int, int>& reverse_continuous_node_mapping);
         void FillInDegreeArr(Graph* graph, const std::map<int, int>& continuous_node_mapping, int* in_degree_arr);
