@@ -826,8 +826,7 @@ int ABM::main() {
         #pragma omp parallel for reduction(merge_int_pair_vecs: new_edges_vec)
         for(size_t i = 0; i < new_nodes_vec.size(); i ++) {
             std::vector<std::pair<int, int>> local_new_edges_vec;
-            int citations[250];
-            /* int* citations = new int[250]; // maximum size container with 250 assumption for now */
+            int citations[250]; // out-degree assumed to be max 249
             this->WriteToLogFile("starting node " + std::to_string(i) + "/" + std::to_string(new_nodes_vec.size()), Log::debug);
             int new_node = new_nodes_vec[i];
             /* this->AssignAuthor(graph, new_node, author_to_publication_map, number_published_to_author_map, author_remaining_years_map); */
@@ -836,19 +835,8 @@ int ABM::main() {
             double rec_weight = rec_weight_arr[weight_arr_index];
             double fit_weight = fit_weight_arr[weight_arr_index];
             double alpha = alpha_arr[weight_arr_index];
-            /* std::vector<int> neighborhood = this->GetNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping); */
-            /* std::vector<int> generator_nodes = this->GetGeneratorNodes(graph, reverse_continuous_node_mapping); */
-            /* #pragma omp critical */
-            /* { */
-            /*     this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes); */
-            /*     generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node); */
-            /* } */
             std::vector<int> generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node);
-
-            /* std::vector<int> generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node); */
             std::map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping);
-            /* this->WriteToLogFile("neighborhood size is " + std::to_string(neighborhood.size()), Log::debug); */
-
 
             int num_generator_node_citation = generator_nodes.size(); // should be 1 for now
             int same_year_citation = same_year_source_nodes.count(i); // could be 0 or 1
@@ -874,37 +862,16 @@ int ABM::main() {
 
             num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[1], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
             num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[2], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
-            /* #pragma omp critical */
-            /* { */
-            /* this->WriteToLogFile("new node id:" + std::to_string(new_node), Log::debug); */
-            /* this->WriteToLogFile("assigned out-degree:" + std::to_string(out_degree_arr[weight_arr_index]), Log::debug); */
-            /* this->WriteToLogFile("total num cited not including generator: " + std::to_string(num_actually_cited), Log::debug); */
-            /* this->WriteToLogFile("cited " + std::to_string(num_generator_node_citation) + " as generator", Log::debug); */
-            /* this->WriteToLogFile("cited " + std::to_string(same_year_citation) + " as same year", Log::debug); */
-            /* this->WriteToLogFile("initially reserved " + std::to_string(num_fully_random_cited_reserved) + " as random", Log::debug); */
-            /* this->WriteToLogFile("cited " + std::to_string(num_citations_inside) + " as inside", Log::debug); */
-            /* this->WriteToLogFile("cited " + std::to_string(num_citations_outside) + " as outside", Log::debug); */
-            /* this->WriteToLogFile("cited " + std::to_string(num_fully_random_cited) + " as random", Log::debug); */
-            /* this->WriteToLogFile("1-hop size: " + std::to_string(one_and_two_hop_neighborhood_map[1].size()), Log::debug); */
-            /* this->WriteToLogFile("2-hop size: " + std::to_string(one_and_two_hop_neighborhood_map[2].size()), Log::debug); */
-            /* } */
             num_actually_cited += this->MakeUniformRandomCitations(graph, reverse_continuous_node_mapping, generator_nodes, citations, num_actually_cited, num_fully_random_cited);
 
             for(size_t j = 0; j < generator_nodes.size(); j ++) {
                 local_new_edges_vec.push_back({new_node, generator_nodes[j]});
             }
             for(int j = 0; j < num_actually_cited; j ++) {
-                /* if(citations[i] == current_max_pa_node_id) { */
-                /*     this->WriteToLogFile("max indegree pa node id cited", Log::debug); */
-                /* } */
-                /* if(citations[i] == 4920089) { */
-                /*     std::cout << "4920089 cited" << std::endl; */
-                /* } */
                 local_new_edges_vec.push_back({new_node, citations[j]});
             }
             new_edges_vec.insert(new_edges_vec.end(), local_new_edges_vec.begin(), local_new_edges_vec.end());
-            /* this->WriteToLogFile("edge vec now has " + std::to_string(new_edges_vec.size()) + " edges", Log::debug); */
-        }
+        } // end of omp parallel loop
 
         /* this->WriteToLogFile("edges saved to vector", Log::debug); */
         for(size_t i = 0; i < new_edges_vec.size(); i ++) {
@@ -920,7 +887,6 @@ int ABM::main() {
         this->AssignFitnessPeakDuration(graph, new_nodes_vec);
         this->WriteToLogFile("assigned fitness peak duration for new nodes", Log::debug);
         this->PlantNodes(graph, new_nodes_vec, current_year - start_year + 1);
-        /* this->WriteToLogFile("assigned fitness peak duration for new nodes", Log::debug); */
         /* this->AgeAuthors(author_to_publication_map, number_published_to_author_map, author_remaining_years_map); */
         new_nodes_vec.clear();
         new_edges_vec.clear();
