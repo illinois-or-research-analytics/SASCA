@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <queue>
+#include <tuple>
 #include <omp.h>
 #include "graph.h"
 
@@ -59,8 +60,8 @@ class ABM {
         int GetMaxYear(Graph* graph);
         int GetMaxNode(Graph* graph);
         void PopulateOutDegreeArr(int* out_degree_arr, int len);
-        void CalculateScores(int* src_arr, double* dst_arr, int len);
-        int MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_mapping, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations);
+        void CalculateScores(std::map<int, double>& cached_results, int* src_arr, double* dst_arr, int len);
+        int MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_mapping, const std::map<std::tuple<int, int, int>, std::vector<double>>& precomputed_weighted_sum_vec, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations);
         void FillSameYearSourceNodes(std::set<int>& same_year_source_nodes, int current_year_new_nodes);
         int MakeUniformRandomCitations(Graph* graph, const std::map<int, int>& reverse_continuous_node_mapping, std::vector<int>& generator_nodes, int* citations, int num_cited_so_far, int num_citations);
         int MakeSameYearCitations(int num_new_nodes, const std::map<int, int>& reverse_continuous_node_mapping, int* citations, int current_graph_size);
