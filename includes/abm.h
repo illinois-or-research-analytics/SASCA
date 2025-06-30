@@ -13,6 +13,7 @@
 #include <queue>
 #include <tuple>
 #include <omp.h>
+#include <Eigen/Dense>
 #include "graph.h"
 
 

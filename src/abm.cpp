@@ -413,8 +413,13 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     if (candidate_nodes.size() <= 0) {
         return 0;
     }
-    double* current_scores = new double[candidate_nodes.size() + 1];
-    current_scores[candidate_nodes.size()] = 0.0;
+    Eigen::MatrixXd current_scores(candidate_nodes.size(), 3);
+    Eigen::Vector3d current_weights(pa_weight, rec_weight, fit_weight);
+    /* weights(0, 0) = 3.0; */
+    /* std::cerr << "eigen weights is: " << weights(0, 0) << std::endl; */
+
+    /* double* current_scores = new double[candidate_nodes.size() + 1]; */
+    /* current_scores[candidate_nodes.size()] = 0.0; */
     std::vector<std::pair<double, int>> element_index_vec;
     /* std::vector<int> low_probability_node_vec; */
     std::random_device rand_dev;
@@ -433,7 +438,11 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
         double current_pa = pa_arr[continuous_node_id];
         double current_rec = recency_arr[continuous_node_id];
         double current_fit = fit_arr[continuous_node_id];
-        current_scores[i] = (current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight);
+        current_scores(i, 0) = current_pa;
+        current_scores(i, 1) = current_rec;
+        current_scores(i, 2) = current_fit;
+        /* current_scores[i] = (current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight); */
+        /* current_scores[i] = (current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight); */
         /* this->WriteToLogFile("current tuple: " + std::to_string(current_pa) + " " + std::to_string(current_rec) + " " + std::to_string(current_fit), Log::info); */
         /* this->WriteToLogFile("continuous_node_id: " + std::to_string(continuous_node_id), Log::info); */
         /* this->WriteToLogFile("current weigt vec size : " + std::to_string(precomputed_weigted_sum_vec.at(current_tuple).size()), Log::info); */
@@ -456,12 +465,16 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
         /* current_scores[i] = precomputed_weigted_sum_vec.at(current_tuple).at(continuous_node_id); */
         /* this->WriteToLogFile("ending iteration: " + std::to_string(i), Log::info); */
     }
+    Eigen::MatrixXd current_weighted_scores = current_scores * current_weights;
+
 
     for(size_t i = 0; i < candidate_nodes.size(); i ++) {
         double wrs_uniform = wrs_uniform_distribution(generator);
         /* double current_score = 0; */
         /* if (current_scores[i] > 0.001) { */
-        double current_score = pow(wrs_uniform, 1.0/current_scores[i]);
+        /* double current_score = pow(wrs_uniform, 1.0/current_scores[i]); */
+        /* element_index_vec.push_back({current_score, candidate_nodes.at(i)}); */
+        double current_score = pow(wrs_uniform, 1.0/current_weighted_scores(i, 0));
         element_index_vec.push_back({current_score, candidate_nodes.at(i)});
         /* } else { */
         /*     /1* element_index_vec.push_back({0, candidate_nodes.at(i)}); *1/ */
@@ -494,7 +507,7 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     }
     /* } */
 
-    delete[] current_scores;
+    /* delete[] current_scores; */
     /* delete[] random_weight_arr; */
     return actual_num_cited;
 }

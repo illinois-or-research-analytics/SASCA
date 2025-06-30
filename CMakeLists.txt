@@ -7,12 +7,14 @@ if("${CMAKE_BINARY_DIR}" STREQUAL "${CMAKE_SOURCE_DIR}")
 else()
     #[[ Set project version ]]
     project(abm)
+    list(APPEND CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/external_libs/lib/cmake/eigen)
     # list(APPEND CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/external_libs/lib/cmake/igraph)
     # list(APPEND CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/external_libs/lib/cmake/libleidenalg)
     # list(APPEND CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/external_libs/lib64/cmake/igraph)
     # list(APPEND CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/external_libs/lib64/cmake/libleidenalg)
     # find_package(igraph 0.10 CONFIG REQUIRED)
     # find_package(libleidenalg 0.11 CONFIG REQUIRED)
+    find_package(Eigen3 REQUIRED)
     find_package(OpenMP REQUIRED)
 
     set(ABM_MAJOR_VERSION 0)
@@ -54,6 +56,7 @@ else()
     # target_link_libraries(internal_libs PUBLIC igraph::igraph)
     # target_link_libraries(internal_libs PUBLIC libleidenalg::libleidenalg)
     target_link_libraries(internal_libs PUBLIC OpenMP::OpenMP_CXX)
+    target_link_libraries(internal_libs PUBLIC Eigen3::Eigen)
     target_link_libraries(abm PUBLIC internal_libs)
 
     #[[ Link libraries ]]
