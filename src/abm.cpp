@@ -172,7 +172,7 @@ void ABM::FillRecencyArr(Graph* graph, const std::map<int, int>& reverse_continu
         year_count[year_diff] ++;
     }
     // Mark: removed for node-level
-    /* #pragma omp parallel for simd */
+    #pragma omp parallel for
     for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
         int node_id = reverse_continuous_node_mapping.at(i);
         int current_published_year = graph->GetIntAttribute("year", node_id);
@@ -180,7 +180,7 @@ void ABM::FillRecencyArr(Graph* graph, const std::map<int, int>& reverse_continu
         recency_arr[i] = (float)this->recency_probabilities_map[year_diff] / year_count[year_diff];
     }
     // Mark: removed for node-level
-    /* #pragma omp parallel for simd */
+    #pragma omp parallel for
     for(size_t i = 0; i < graph->GetNodeSet().size(); i ++) {
         recency_arr[i] /= unique_year_sum;
     }
@@ -323,25 +323,18 @@ void ABM::UpdateGraphAttributesGeneratorNodes(Graph* graph, int new_node, const 
 
 void ABM::CalculateScores(std::map<int, double>& cached_results, int* src_arr, double* dst_arr, int len) {
     double sum = 0;
-    // Mark: removed for node-level
-    /* #pragma omp parallel for simd */
+    #pragma omp parallel for reduction(+:sum)
     for(int i = 0; i < len; i ++) {
         double current_dst = -1;
         if (src_arr[i] < 10000) {
-            if (cached_results.contains(src_arr[i])) {
-                current_dst = cached_results[src_arr[i]];
-            } else {
-                current_dst = pow(src_arr[i], this->gamma) + 1;
-                cached_results[src_arr[i]] = current_dst;
-            }
+            current_dst = cached_results[src_arr[i]];
         } else {
             current_dst = pow(src_arr[i], this->gamma) + 1;
         }
         dst_arr[i] = current_dst;
         sum += current_dst;
     }
-    // Mark: removed for node-level
-    /* #pragma omp parallel for simd */
+    #pragma omp parallel for
     for(int i = 0; i < len; i ++) {
         dst_arr[i] /= sum;
     }
@@ -406,7 +399,7 @@ int ABM::MakeUniformRandomCitations(Graph* graph, const std::map<int, int>& reve
     return actual_num_cited;
 }
 
-int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_mapping, const std::map<std::tuple<int, int, int>, std::vector<double>>& precomputed_weigted_sum_vec, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations) {
+int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_mapping, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations) {
     if (num_citations <= 0) {
         return 0;
     }
@@ -425,15 +418,7 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
     std::random_device rand_dev;
     std::minstd_rand generator{rand_dev()};
     std::uniform_real_distribution<double> wrs_uniform_distribution{std::numeric_limits<double>::min(), 1};
-    /* int current_pa = (int)std::round(pa_weight * 100); */
-    /* int current_rec = (int)std::round(rec_weight * 100); */
-    /* int current_fit = 100 - current_pa - current_rec; */
-    /* std::tuple<int, int, int> current_tuple = {(int)std::round(pa_weight * 100), (int)std::round(rec_weight * 100), (int)std::round(fit_weight * 100)}; */
-    /* std::tuple<int, int, int> current_tuple = {current_pa, current_rec, current_fit}; */
-    /* this->WriteToLogFile("total num iterations: " + std::to_string(candidate_nodes.size()), Log::info); */
     for(size_t i = 0; i < candidate_nodes.size(); i ++) {
-        /* this->WriteToLogFile("iteration: " + std::to_string(i), Log::info); */
-        /* this->WriteToLogFile("candidate node id: " + std::to_string(candidate_nodes.at(i)), Log::info); */
         int continuous_node_id = continuous_node_mapping.at(candidate_nodes.at(i));
         double current_pa = pa_arr[continuous_node_id];
         double current_rec = recency_arr[continuous_node_id];
@@ -441,45 +426,20 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
         current_scores(i, 0) = current_pa;
         current_scores(i, 1) = current_rec;
         current_scores(i, 2) = current_fit;
-        /* current_scores[i] = (current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight); */
-        /* current_scores[i] = (current_pa * pa_weight) + (current_rec * rec_weight) + (current_fit * fit_weight); */
-        /* this->WriteToLogFile("current tuple: " + std::to_string(current_pa) + " " + std::to_string(current_rec) + " " + std::to_string(current_fit), Log::info); */
-        /* this->WriteToLogFile("continuous_node_id: " + std::to_string(continuous_node_id), Log::info); */
-        /* this->WriteToLogFile("current weigt vec size : " + std::to_string(precomputed_weigted_sum_vec.at(current_tuple).size()), Log::info); */
-        /* this->WriteToLogFile("current weigt vec at cont id: " + std::to_string(precomputed_weigted_sum_vec.at(current_tuple).at(continuous_node_id)), Log::info); */
-        /* if (!precomputed_weigted_sum_vec.contains(current_tuple)) { */
-        /*     std::cerr << std::to_string(current_pa) << " " << std::to_string(current_rec) << " " << std::to_string(current_fit) << " not in precomputed weighted sum vec" << std::endl; */
-        /*     this->WriteToLogFile("can't find tuple " + std::to_string(current_pa) + " " + std::to_string(current_rec) + " " + std::to_string(current_fit), Log::info); */
-        /* } */
-        /* this->WriteToLogFile("checked contains", Log::info); */
-        /* if(graph->GetNodeSet().size() != precomputed_weigted_sum_vec.at(current_tuple).size()) { */
-        /*     std::cerr << "graph length  mismatch: " << std::to_string(graph->GetNodeSet().size()) << " vs " << std::to_string(precomputed_weigted_sum_vec.at(current_tuple).size()) << std::endl; */
-        /*     this->WriteToLogFile("graph length  mismatch: " + std::to_string(graph->GetNodeSet().size()) + " vs " + std::to_string(precomputed_weigted_sum_vec.at(current_tuple).size()), Log::info); */
-        /* } */
-        /* this->WriteToLogFile("checked length equality ", Log::info); */
-        /* if(continuous_node_id >= graph->GetNodeSet().size()) { */
-        /*     std::cerr << "graph length  mismatch?: " << std::to_string(graph->GetNodeSet().size()) << " vs " << std::to_string(continuous_node_id) << std::endl; */
-        /*     this->WriteToLogFile("graph length  mismatch?: " + std::to_string(graph->GetNodeSet().size()) + " vs " + std::to_string(continuous_node_id), Log::info); */
-        /* } */
-        /* this->WriteToLogFile("checked index out of bounds should be ok", Log::info); */
-        /* current_scores[i] = precomputed_weigted_sum_vec.at(current_tuple).at(continuous_node_id); */
-        /* this->WriteToLogFile("ending iteration: " + std::to_string(i), Log::info); */
     }
     Eigen::MatrixXd current_weighted_scores = current_scores * current_weights;
+    /* Eigen::ArrayXd current_bases(candidate_nodes.size()); */
+    /* for(size_t i = 0; i < candidate_nodes.size(); i ++) { */
+    /*     double wrs_uniform = wrs_uniform_distribution(generator); */
+    /*     current_bases(i) = wrs_uniform; */
+    /* } */
+    auto current_wrs_uniform = [&] () {return wrs_uniform_distribution(generator);};
+    Eigen::ArrayXd current_bases = Eigen::ArrayXd::NullaryExpr(candidate_nodes.size(), current_wrs_uniform);
 
+    Eigen::ArrayXd weighted_random_sampling_results = current_bases.pow(1 / current_weighted_scores.array());
 
     for(size_t i = 0; i < candidate_nodes.size(); i ++) {
-        double wrs_uniform = wrs_uniform_distribution(generator);
-        /* double current_score = 0; */
-        /* if (current_scores[i] > 0.001) { */
-        /* double current_score = pow(wrs_uniform, 1.0/current_scores[i]); */
-        /* element_index_vec.push_back({current_score, candidate_nodes.at(i)}); */
-        double current_score = pow(wrs_uniform, 1.0/current_weighted_scores(i, 0));
-        element_index_vec.push_back({current_score, candidate_nodes.at(i)});
-        /* } else { */
-        /*     /1* element_index_vec.push_back({0, candidate_nodes.at(i)}); *1/ */
-        /*     low_probability_node_vec.push_back(candidate_nodes.at(i)); */
-        /* } */
+        element_index_vec.push_back({weighted_random_sampling_results(i), candidate_nodes.at(i)});
     }
 
     int actual_num_cited = num_citations;
@@ -487,21 +447,13 @@ int ABM::MakeCitations(Graph* graph, const std::map<int, int>& continuous_node_m
         actual_num_cited = candidate_nodes.size();
     }
 
-    /* if (element_index_vec.size() < actual_num_cited) { */
-    /*     for (int i = 0; i < element_index_vec.size(); i ++) { */
-    /*         citations[i] = element_index_vec[i].second; */
-    /*     } */
-    /*     int num_extra_needed = actual_num_cited - element_index_vec.size(); */
-    /*     if (num_extra_needed > low_probability_node_vec.size()) { */
-    /*         num_extra_needed = low_probability_node_vec.size(); */
-    /*     } */
-    /*     for(int i = 0; i < num_extra_needed; i ++) { */
-    /*         citations[i + element_index_vec.size()] = low_probability_node_vec.at(i); */
-    /*     } */
-    /* } else { */
     std::partial_sort(element_index_vec.begin(), element_index_vec.begin() + actual_num_cited, element_index_vec.end(), [](auto& left, auto& right){
         return left.first > right.first; // read
     });
+    /* std::nth_element(element_index_vec.begin(), element_index_vec.begin() + actual_num_cited, element_index_vec.end(), [](auto& left, auto& right) { */
+    /*     return left.first > right.first; */
+    /* }); */
+
     for (int i = 0; i < actual_num_cited; i ++) {
         citations[i] = element_index_vec[i].second;
     }
@@ -768,7 +720,9 @@ int ABM::main() {
     std::set<int> same_year_source_nodes;
     std::vector<std::pair<int, int>> new_edges_vec;
     std::map<int, double> cached_results;
-    std::map<std::tuple<int, int, int>, std::vector<double>> precomputed_weigted_sum_vec;
+    for(int i = 0; i < 10000; i ++) {
+        cached_results[i] = pow(i, this->gamma) + 1;
+    }
     for (int current_year = start_year; current_year < start_year + this->num_cycles; current_year ++) {
         /* std::cout << "new year" << std::endl; */
         int current_graph_size = graph->GetNodeSet().size();
@@ -803,35 +757,6 @@ int ABM::main() {
             std::vector<int> generator_nodes = this->GetGeneratorNodes(graph, reverse_continuous_node_mapping);
             this->UpdateGraphAttributesGeneratorNodes(graph, new_node, generator_nodes);
         }
-
-        /* size_t precision = 100; */
-        /* #pragma omp parallel for collapse(3) */
-        /* for(size_t i = 0; i <= precision; i ++) { */
-        /*     for(size_t j = 0; j <= precision; j ++) { */
-        /*         for(size_t k = 0; k <= precision; k ++) { */
-        /*             std::tuple<int, int, int> current_tuple = {i, j, k}; */
-        /*             if (i + j + k == precision) { */
-        /*                 /1* if (i == 0 && j == 0 && k == 100) { *1/ */
-        /*                 /1*     this->WriteToLogFile("0/0/100 tuple found", Log::debug); *1/ */
-        /*                 /1* } *1/ */
-        /*                 std::vector<double> current_weighted_sum_vec; */
-        /*                 for(size_t l = 0; l < current_graph_size; l ++) { */
-        /*                     double current_pa = pa_arr[l]; */
-        /*                     double current_rec = recency_arr[l]; */
-        /*                     double current_fit = fit_arr[l]; */
-        /*                     current_weighted_sum_vec.push_back((current_pa * i/precision) + (current_rec * j/precision) + (current_fit * k/precision)); */
-        /*                 } */
-        /*                 #pragma omp critical */
-        /*                 { */
-        /*                     precomputed_weigted_sum_vec[current_tuple] = current_weighted_sum_vec; */
-        /*                 /1* this->WriteToLogFile("current size of precomptued weighted sum vectuple: " + std::to_string(precomputed_weigted_sum_vec.at(current_tuple).size()), Log::debug); *1/ */
-        /*                 } */
-        /*             } */
-        /*         } */
-        /*     } */
-        /* } */
-        /* this->WriteToLogFile("size of precomptued weighted sum vec: " + std::to_string(precomputed_weigted_sum_vec.size()), Log::debug); */
-        /* this->WriteToLogFile("size of precomptued weighted sum vec[0,0,100]: " + std::to_string(precomputed_weigted_sum_vec.at({0, 0, 100}).size()), Log::debug); */
 
         #pragma omp parallel for reduction(merge_int_pair_vecs: new_edges_vec)
         for(size_t i = 0; i < new_nodes_vec.size(); i ++) {
@@ -870,8 +795,8 @@ int ABM::main() {
                 num_actually_cited += this->MakeSameYearCitations(new_nodes_vec.size(), reverse_continuous_node_mapping, citations, current_graph_size);
             }
 
-            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, precomputed_weigted_sum_vec, current_year, one_and_two_hop_neighborhood_map[1], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
-            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, precomputed_weigted_sum_vec, current_year, one_and_two_hop_neighborhood_map[2], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
+            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[1], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
+            num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[2], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
             num_actually_cited += this->MakeUniformRandomCitations(graph, reverse_continuous_node_mapping, generator_nodes, citations, num_actually_cited, num_fully_random_cited);
 
             for(size_t j = 0; j < generator_nodes.size(); j ++) {
@@ -900,7 +825,6 @@ int ABM::main() {
         /* this->AgeAuthors(author_to_publication_map, number_published_to_author_map, author_remaining_years_map); */
         new_nodes_vec.clear();
         new_edges_vec.clear();
-        precomputed_weigted_sum_vec.clear();
         /* this->WriteToLogFile("writing temp graph", Log::info); */
         /* graph->WriteGraph(this->output_file + "_" + std::to_string(current_year)); */
     }
