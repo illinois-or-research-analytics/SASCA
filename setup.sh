@@ -17,6 +17,10 @@ cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=${external_libs_full_path}
 cmake --build .
 cmake --install .
+
+
+cd ${external_libs_full_path}
+git clone "https://github.com/imneme/pcg-cpp.git"
 # rm -rf ${external_libs_full_path}/libleidenalg
 # rm -rf ${external_libs_full_path}/lib
 # rm -rf ${external_libs_full_path}/lib64

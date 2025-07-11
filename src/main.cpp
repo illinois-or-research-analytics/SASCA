@@ -57,6 +57,10 @@ int main(int argc, char* argv[]) {
         .required()
         .help("Growth rate")
         .scan<'g', double>();
+    main_program.add_argument("--neighborhood-sample")
+        .default_value(int(-1))
+        .help("Number to sample from the 1 and 2 hop neighborhoods")
+        .scan<'d', int>();
     main_program.add_argument("--output-file")
         .required()
         .help("Output clustering file");
@@ -95,12 +99,13 @@ int main(int argc, char* argv[]) {
     double growth_rate = main_program.get<double>("--growth-rate");
     int num_cycles = main_program.get<int>("--num-cycles");
     double same_year_proportion = main_program.get<double>("--same-year-proportion");
+    int neighborhood_sample = main_program.get<int>("--neighborhood-sample");
     std::string output_file = main_program.get<std::string>("--output-file");
     std::string auxiliary_information_file = main_program.get<std::string>("--auxiliary-information-file");
     std::string log_file = main_program.get<std::string>("--log-file");
     int num_processors = main_program.get<int>("--num-processors");
     int log_level = main_program.get<int>("--log-level") - 1; // so that enum is cleaner
-    ABM* abm = new ABM(edgelist, nodelist, out_degree_bag, recency_probabilities, planted_nodes, alpha, fully_random_citations, preferential_weight, recency_weight, fitness_weight, growth_rate, num_cycles, same_year_proportion, output_file, auxiliary_information_file, log_file, num_processors, log_level);
+    ABM* abm = new ABM(edgelist, nodelist, out_degree_bag, recency_probabilities, planted_nodes, alpha, fully_random_citations, preferential_weight, recency_weight, fitness_weight, growth_rate, num_cycles, same_year_proportion, neighborhood_sample, output_file, auxiliary_information_file, log_file, num_processors, log_level);
     abm->main();
     delete abm;
 }

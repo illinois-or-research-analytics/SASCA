@@ -106,11 +106,11 @@ void Graph::AddNode(int u) {
 const std::set<int>& Graph::GetNodeSet() const {
     return this->node_set;
 }
-const std::map<int, std::set<int>>& Graph::GetForwardAdjMap() const {
+const std::unordered_map<int, std::set<int>>& Graph::GetForwardAdjMap() const {
     return this->forward_adj_map;
 }
 
-const std::map<int, std::set<int>>& Graph::GetBackwardAdjMap() const {
+const std::unordered_map<int, std::set<int>>& Graph::GetBackwardAdjMap() const {
     return this->backward_adj_map;
 }
 
@@ -139,7 +139,7 @@ void Graph::WriteGraph(std::string output_file) const {
 
 void Graph::WriteAttributes(std::string auxiliary_information_file) const {
     std::ofstream auxiliary_information_filehandle(auxiliary_information_file);
-    auxiliary_information_filehandle << "node_id,type,year,pa_weight,rec_weight,fit_weight,fit_lag_duration,fit_peak_value,fit_peak_duration,alpha,in_degree,out_degree,assigned_out_degree,planted_nodes_line_number,generator_node_string\n";
+    auxiliary_information_filehandle << "node_id,type,year,pa_weight,rec_weight,fit_weight,fit_lag_duration,fit_peak_value,fit_peak_duration,alpha,in_degree,out_degree,assigned_out_degree,planted_nodes_line_number,generator_node_string,one_hop_neighborhood_size,two_hop_neighborhood_size\n";
     for(const auto& node_id : this->GetNodeSet()) {
         std::string node_type = this->GetStringAttribute("type", node_id);
         int year = this->GetIntAttribute("year", node_id);
@@ -155,6 +155,8 @@ void Graph::WriteAttributes(std::string auxiliary_information_file) const {
         int in_degree = this->GetIntAttribute("in_degree", node_id);
         int planted_nodes_line_number = -1;
         std::string generator_node_string  = "no_generators";
+        int one_hop_neighborhood_size = -1;
+        int two_hop_neighborhood_size = -1;
         if(node_type == "agent") {
             pa_weight = this->GetDoubleAttribute("preferential_attachment_weight", node_id);
             rec_weight = this->GetDoubleAttribute("recency_weight", node_id);
@@ -165,8 +167,10 @@ void Graph::WriteAttributes(std::string auxiliary_information_file) const {
             if(this->HasIntAttribute("planted_nodes_line_number", node_id)) {
                 planted_nodes_line_number = this->GetIntAttribute("planted_nodes_line_number", node_id);
             }
+            one_hop_neighborhood_size = this->GetIntAttribute("one_hop_neighborhood_size", node_id);
+            two_hop_neighborhood_size = this->GetIntAttribute("two_hop_neighborhood_size", node_id);
         }
-        auxiliary_information_filehandle << node_id << "," << node_type << "," << year << "," << pa_weight << "," << rec_weight << "," << fit_weight << "," << fit_lag_duration << "," << fit_peak_value << "," << fit_peak_duration << "," << alpha << "," << in_degree << "," << out_degree << "," << assigned_out_degree << "," << planted_nodes_line_number << "," << generator_node_string << "\n";
+        auxiliary_information_filehandle << node_id << "," << node_type << "," << year << "," << pa_weight << "," << rec_weight << "," << fit_weight << "," << fit_lag_duration << "," << fit_peak_value << "," << fit_peak_duration << "," << alpha << "," << in_degree << "," << out_degree << "," << assigned_out_degree << "," << planted_nodes_line_number << "," << generator_node_string << "," << one_hop_neighborhood_size << "," << two_hop_neighborhood_size << "\n";
     }
     auxiliary_information_filehandle.close();
 }

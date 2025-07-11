@@ -2,6 +2,8 @@
 #define GRAPH_H
 
 #include <set>
+#include <unordered_set>
+#include <unordered_map>
 #include <map>
 #include <vector>
 #include <string>
@@ -32,8 +34,8 @@ class Graph {
 
 
         const std::set<int>& GetNodeSet() const;
-        const std::map<int, std::set<int>>& GetForwardAdjMap() const;
-        const std::map<int, std::set<int>>& GetBackwardAdjMap() const;
+        const std::unordered_map<int, std::set<int>>& GetForwardAdjMap() const;
+        const std::unordered_map<int, std::set<int>>& GetBackwardAdjMap() const;
         void SetIntAttribute(std::string attribute_key, int node, int attribute_value);
         int GetIntAttribute(std::string attribute_key, int node) const;
         void SetStringAttribute(std::string attribute_key, int node, std::string attribute_value);
@@ -57,11 +59,11 @@ class Graph {
         std::string nodelist;
 
     protected:
-        std::map<int, std::set<int>> forward_adj_map;
-        std::map<int, std::set<int>> backward_adj_map;
-        std::map<std::string, std::map<int, int>> int_attribute_map;
-        std::map<std::string, std::map<int, std::string>> string_attribute_map;
-        std::map<std::string, std::map<int, double>> double_attribute_map;
+        std::unordered_map<int, std::set<int>> forward_adj_map;
+        std::unordered_map<int, std::set<int>> backward_adj_map;
+        std::unordered_map<std::string, std::unordered_map<int, int>> int_attribute_map;
+        std::unordered_map<std::string, std::unordered_map<int, std::string>> string_attribute_map;
+        std::unordered_map<std::string, std::unordered_map<int, double>> double_attribute_map;
 };
 
 #endif

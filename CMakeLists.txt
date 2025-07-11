@@ -52,6 +52,7 @@ else()
     target_include_directories(internal_libs
         PUBLIC ${CMAKE_SOURCE_DIR}/includes
         PUBLIC ${CMAKE_SOURCE_DIR}/src
+        PUBLIC ${CMAKE_SOURCE_DIR}/external_libs/pcg-cpp/include
     )
     # target_link_libraries(internal_libs PUBLIC igraph::igraph)
     # target_link_libraries(internal_libs PUBLIC libleidenalg::libleidenalg)
