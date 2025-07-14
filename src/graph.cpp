@@ -126,7 +126,7 @@ void Graph::PrintGraph() const {
 
 void Graph::WriteGraph(std::string output_file) const {
     std::ofstream output_filehandle(output_file);
-    output_filehandle << "#source,target" << std::endl;
+    output_filehandle << "source,target" << std::endl;
     for(auto const& [u,u_neighbors] : this->GetForwardAdjMap()) {
         for(const int& v : u_neighbors) {
             /* if (u < v) { */
