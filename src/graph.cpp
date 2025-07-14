@@ -10,6 +10,7 @@ void Graph::ParseEdgelist() {
     char delimiter = Graph::get_delimiter(this->edgelist);
     std::ifstream input_edgelist(this->edgelist);
     std::string line;
+    int line_no = 0;
     while(std::getline(input_edgelist, line)) {
         std::stringstream ss(line);
         std::string current_value;
@@ -17,13 +18,12 @@ void Graph::ParseEdgelist() {
         while(std::getline(ss, current_value, delimiter)) {
             current_line.push_back(current_value);
         }
-        std::string citing = current_line[0];
-        if(citing[0] == '#') {
-            continue;
+        if(line_no != 0) {
+            int integer_citing = std::stoi(current_line[0]);
+            int integer_cited = std::stoi(current_line[1]);
+            this->AddEdge({integer_citing, integer_cited});
         }
-        int integer_citing = std::stoi(citing);
-        int integer_cited = std::stoi(current_line[1]);
-        this->AddEdge({integer_citing, integer_cited});
+        line_no ++;
     }
 }
 
@@ -31,6 +31,7 @@ void Graph::ParseNodelist() {
     char delimiter = Graph::get_delimiter(this->nodelist);
     std::ifstream input_nodelist(this->nodelist);
     std::string line;
+    int line_no = 0;
     while(std::getline(input_nodelist, line)) {
         std::stringstream ss(line);
         std::string current_value;
@@ -38,14 +39,13 @@ void Graph::ParseNodelist() {
         while(std::getline(ss, current_value, delimiter)) {
             current_line.push_back(current_value);
         }
-        std::string node = current_line[0];
-        if(node[0] == '#') {
-            continue;
+        if(line_no != 0) {
+            int integer_node = std::stoi(current_line[0]);
+            int integer_year = std::stoi(current_line[1]);
+            this->SetIntAttribute("year", integer_node, integer_year);
+            this->SetStringAttribute("type", integer_node, "seed");
         }
-        int integer_node = std::stoi(node);
-        int integer_year = std::stoi(current_line[1]);
-        this->SetIntAttribute("year", integer_node, integer_year);
-        this->SetStringAttribute("type", integer_node, "seed");
+        line_no ++;
     }
 }
 
@@ -78,8 +78,8 @@ bool Graph::HasIntAttribute(std::string attribute_key, int node) const {
 }
 
 void Graph::AddEdge(std::pair<int, int> edge) {
-    this->forward_adj_map[edge.first].insert(edge.second);
-    this->backward_adj_map[edge.second].insert(edge.first);
+    this->forward_adj_map[edge.first].push_back(edge.second);
+    this->backward_adj_map[edge.second].push_back(edge.first);
     this->AddNode(edge.first);
     this->AddNode(edge.second);
 }
@@ -106,11 +106,11 @@ void Graph::AddNode(int u) {
 const std::set<int>& Graph::GetNodeSet() const {
     return this->node_set;
 }
-const std::unordered_map<int, std::set<int>>& Graph::GetForwardAdjMap() const {
+const std::unordered_map<int, std::vector<int>>& Graph::GetForwardAdjMap() const {
     return this->forward_adj_map;
 }
 
-const std::unordered_map<int, std::set<int>>& Graph::GetBackwardAdjMap() const {
+const std::unordered_map<int, std::vector<int>>& Graph::GetBackwardAdjMap() const {
     return this->backward_adj_map;
 }
 
@@ -139,7 +139,7 @@ void Graph::WriteGraph(std::string output_file) const {
 
 void Graph::WriteAttributes(std::string auxiliary_information_file) const {
     std::ofstream auxiliary_information_filehandle(auxiliary_information_file);
-    auxiliary_information_filehandle << "node_id,type,year,pa_weight,rec_weight,fit_weight,fit_lag_duration,fit_peak_value,fit_peak_duration,alpha,in_degree,out_degree,assigned_out_degree,planted_nodes_line_number,generator_node_string,one_hop_neighborhood_size,two_hop_neighborhood_size\n";
+    auxiliary_information_filehandle << "node_id,type,year,pa_weight,rec_weight,fit_weight,fit_lag_duration,fit_peak_value,fit_peak_duration,alpha,in_degree,out_degree,assigned_out_degree,planted_nodes_line_number,generator_node_string,sampled_one_hop_neighborhood_size,sampled_two_hop_neighborhood_size\n";
     for(const auto& node_id : this->GetNodeSet()) {
         std::string node_type = this->GetStringAttribute("type", node_id);
         int year = this->GetIntAttribute("year", node_id);
@@ -167,8 +167,8 @@ void Graph::WriteAttributes(std::string auxiliary_information_file) const {
             if(this->HasIntAttribute("planted_nodes_line_number", node_id)) {
                 planted_nodes_line_number = this->GetIntAttribute("planted_nodes_line_number", node_id);
             }
-            one_hop_neighborhood_size = this->GetIntAttribute("one_hop_neighborhood_size", node_id);
-            two_hop_neighborhood_size = this->GetIntAttribute("two_hop_neighborhood_size", node_id);
+            one_hop_neighborhood_size = this->GetIntAttribute("sampled_one_hop_neighborhood_size", node_id);
+            two_hop_neighborhood_size = this->GetIntAttribute("sampled_two_hop_neighborhood_size", node_id);
         }
         auxiliary_information_filehandle << node_id << "," << node_type << "," << year << "," << pa_weight << "," << rec_weight << "," << fit_weight << "," << fit_lag_duration << "," << fit_peak_value << "," << fit_peak_duration << "," << alpha << "," << in_degree << "," << out_degree << "," << assigned_out_degree << "," << planted_nodes_line_number << "," << generator_node_string << "," << one_hop_neighborhood_size << "," << two_hop_neighborhood_size << "\n";
     }
