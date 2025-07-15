@@ -533,34 +533,68 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
             std::copy(current_one_hop_neighborhood.begin(), current_one_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[1]));
             std::shuffle(current_one_hop_neighborhood.begin(), current_one_hop_neighborhood.end(), generator);
             for(size_t j = 0; j < current_one_hop_neighborhood.size(); j ++) {
-                /* int current_two_hop_size = graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j]).size(); */
-                /* current_two_hop_size += graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j]).size(); */
-                // worst case for one node we might only grab the outgoing edges
-                std::vector<int> current_two_hop_neighborhood;
+                int current_two_hop_size = 0;
                 if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
-                    for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])) {
-                        if (!visited.contains(outgoing_neighbor)) {
-                            visited.insert(outgoing_neighbor);
-                            current_two_hop_neighborhood.push_back(outgoing_neighbor);
-                        }
-                    }
+                    current_two_hop_size += graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j]).size();
                 }
                 if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
-                    for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])) {
-                        if (!visited.contains(incoming_neighbor)) {
-                            visited.insert(incoming_neighbor);
-                            current_two_hop_neighborhood.push_back(incoming_neighbor);
+                    current_two_hop_size += graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j]).size();
+                }
+                // worst case for one node we might only grab the outgoing edges
+                if (one_and_two_hop_neighborhood_map[2].size() + current_two_hop_size < max_neighborhood_size) {
+                    if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
+                        for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])) {
+                            if (!visited.contains(outgoing_neighbor)) {
+                                visited.insert(outgoing_neighbor);
+                                one_and_two_hop_neighborhood_map[2].push_back(outgoing_neighbor);
+                            }
                         }
                     }
-                }
-                /* if (one_and_two_hop_neighborhood_map[2].size() < max_neighborhood_size) { */
-
-                if (one_and_two_hop_neighborhood_map[2].size() + current_two_hop_neighborhood.size() < max_neighborhood_size) {
-                    std::copy(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2]));
+                    if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
+                        for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])) {
+                            if (!visited.contains(incoming_neighbor)) {
+                                visited.insert(incoming_neighbor);
+                                one_and_two_hop_neighborhood_map[2].push_back(incoming_neighbor);
+                            }
+                        }
+                    }
                 } else {
-                    size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size();
-                    std::sample(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2]), num_to_insert, generator);
-                    return one_and_two_hop_neighborhood_map;
+                    int current_two_hop_size = 0;
+                    int end_forward_index = 0;
+                    if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
+                        end_forward_index = graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j]).size();
+                    }
+                    if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
+                        current_two_hop_size = end_forward_index + graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j]).size();
+                    }
+                    /* std::cerr << "current end forward index is: " + std::to_string(end_forward_index) << std::endl; */
+                    /* std::cerr << "current two hop size  is: " + std::to_string(current_two_hop_size) << std::endl; */
+                    std::vector<int> random_indices(current_two_hop_size);
+                    std::iota(random_indices.begin(), random_indices.end(), 0);
+                    pcg_extras::shuffle(random_indices.begin(), random_indices.end(), generator);
+                    for(int k = 0; k < current_two_hop_size; k ++) {
+                        int current_index = random_indices[k];
+                        /* std::cerr << "current chosen index is: " + std::to_string(current_index) << std::endl; */
+                        if (current_index < end_forward_index) {
+                            /* std::cerr << "not adjusted" << std::endl; */
+                            int current_selected_node = graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])[current_index];
+                            if (!visited.contains(current_selected_node)) {
+                                visited.insert(current_selected_node);
+                                one_and_two_hop_neighborhood_map[2].push_back(current_selected_node);
+                            }
+                        } else {
+                            current_index -= end_forward_index;
+                            /* std::cerr << "adjusted to " + std::to_string(current_index) << std::endl; */
+                            int current_selected_node = graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])[current_index];
+                            if (!visited.contains(current_selected_node)) {
+                                visited.insert(current_selected_node);
+                                one_and_two_hop_neighborhood_map[2].push_back(current_selected_node);
+                            }
+                        }
+                        if (one_and_two_hop_neighborhood_map[2].size() == max_neighborhood_size) {
+                            return one_and_two_hop_neighborhood_map;
+                        }
+                    }
                 }
                 /* } else { */
                 /*     size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size(); */
