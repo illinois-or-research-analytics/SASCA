@@ -331,8 +331,8 @@ void ABM::CalculateScores(std::unordered_map<int, double>& cached_results, int* 
         if (src_arr[i] < 10000) {
             current_dst = cached_results[src_arr[i]];
         } else {
-            /* current_dst = pow(src_arr[i], this->gamma) + 1; */
-            current_dst = (src_arr[i] * this->gamma) + 1;
+            current_dst = pow(src_arr[i], this->gamma) + 1;
+            /* current_dst = (src_arr[i] * this->gamma) + 1; */
         }
         dst_arr[i] = current_dst;
         sum += current_dst;
@@ -461,6 +461,8 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
     std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map;
     one_and_two_hop_neighborhood_map[1] = std::vector<int>();
     one_and_two_hop_neighborhood_map[2] = std::vector<int>();
+    one_and_two_hop_neighborhood_map[1].reserve(this->neighborhood_sample);
+    one_and_two_hop_neighborhood_map[2].reserve(this->neighborhood_sample);
     if (this->neighborhood_sample == -1) {
         std::set<int> visited;
         int num_hops = 2;
@@ -531,29 +533,56 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
             std::copy(current_one_hop_neighborhood.begin(), current_one_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[1]));
             std::shuffle(current_one_hop_neighborhood.begin(), current_one_hop_neighborhood.end(), generator);
             for(size_t j = 0; j < current_one_hop_neighborhood.size(); j ++) {
+                /* int current_two_hop_size = graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j]).size(); */
+                /* current_two_hop_size += graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j]).size(); */
                 // worst case for one node we might only grab the outgoing edges
-                if (graph->GetOutDegree(current_one_hop_neighborhood.at(j)) > 0) {
-                    for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood.at(j))) {
+                std::vector<int> current_two_hop_neighborhood;
+                if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
+                    for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])) {
                         if (!visited.contains(outgoing_neighbor)) {
-                            one_and_two_hop_neighborhood_map[2].push_back(outgoing_neighbor);
-                            if (one_and_two_hop_neighborhood_map[2].size() == max_neighborhood_size) {
-                                return one_and_two_hop_neighborhood_map;
-                            }
                             visited.insert(outgoing_neighbor);
+                            current_two_hop_neighborhood.push_back(outgoing_neighbor);
                         }
                     }
                 }
-                if (graph->GetInDegree(current_one_hop_neighborhood.at(j)) > 0) {
-                    for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood.at(j))) {
+                if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
+                    for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])) {
                         if (!visited.contains(incoming_neighbor)) {
-                            one_and_two_hop_neighborhood_map[2].push_back(incoming_neighbor);
-                            if (one_and_two_hop_neighborhood_map[2].size() == max_neighborhood_size) {
-                                return one_and_two_hop_neighborhood_map;
-                            }
                             visited.insert(incoming_neighbor);
+                            current_two_hop_neighborhood.push_back(incoming_neighbor);
                         }
                     }
                 }
+                /* if (one_and_two_hop_neighborhood_map[2].size() < max_neighborhood_size) { */
+
+                if (one_and_two_hop_neighborhood_map[2].size() + current_two_hop_neighborhood.size() < max_neighborhood_size) {
+                    std::copy(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2]));
+                } else {
+                    size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size();
+                    std::sample(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2]), num_to_insert, generator);
+                    return one_and_two_hop_neighborhood_map;
+                }
+                /* } else { */
+                /*     size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size(); */
+                /*     std::set<int> currently_sampled; */
+                /*     std::uniform_int_distribution<int> generator_uniform_distribution{0, (int)(current_two_hop_neighborhood.size() - 1)}; */
+                /*     while(currently_sampled.size() != num_to_insert) { */
+                /*         int current_random_index = generator_uniform_distribution(generator); */
+                /*         currently_sampled.insert(current_two_hop_neighborhood[current_random_index]); */
+                /*     } */
+                /*     std::copy(currently_sampled.begin(), currently_sampled.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2])); */
+                /*     return one_and_two_hop_neighborhood_map; */
+                /* } */
+                /* if (one_and_two_hop_neighborhood_map[2].size() < max_neighborhood_size) { */
+                /*     return one_and_two_hop_neighborhood_map; */
+                /* } */
+                /* } else { */
+                /*     size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size(); */
+                /*     /1* std::shuffle(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), generator); *1/ */
+                /*     /1* std::copy(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.begin() + num_to_insert, std::back_inserter(one_and_two_hop_neighborhood_map[2])); *1/ */
+                /*     std::sample(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2]), num_to_insert, generator); */
+                /*     return one_and_two_hop_neighborhood_map; */
+                /* } */
             }
         }
     }
@@ -623,6 +652,7 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhoodFromMa
 int ABM::main() {
     Graph* graph = new Graph(this->edgelist, this->nodelist);
     this->WriteToLogFile("loaded graph", Log::info);
+    /* this->InitializeSeedFitness(graph); */
     this->InitializeFitness(graph);
 
     /* node ids to continous integer from 0 */
@@ -663,8 +693,8 @@ int ABM::main() {
     std::vector<std::pair<int, int>> new_edges_vec;
     std::unordered_map<int, double> cached_results;
     for(int i = 0; i < 10000; i ++) {
-        /* cached_results[i] = pow(i, this->gamma) + 1; */
-        cached_results[i] = (i * this->gamma) + 1;
+        cached_results[i] = pow(i, this->gamma) + 1;
+        /* cached_results[i] = (i * this->gamma) + 1; */
     }
     Eigen::setNbThreads(1);
     for (int current_year = start_year; current_year < start_year + this->num_cycles; current_year ++) {

@@ -85,6 +85,18 @@ class ABM {
         /* void InitializeAuthors(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, std::unordered_map<int, std::vector<int>>& author_to_publication_map, std::unordered_map<int, std::vector<int>>& number_published_to_author_map, std::unordered_map<int, int>& author_remaining_years_map); */
         /* void AgeAuthors(std::unordered_map<int, std::vector<int>>& author_to_publication_map, std::unordered_map<int, std::vector<int>>& number_published_to_author_map, std::unordered_map<int, int>& author_remaining_years_map); */
 
+        void InitializeSeedFitness(Graph* graph) {
+            for(auto const& node : graph->GetNodeSet()) {
+                int fitness_lag_uniform = 0; // MARK: hard coded to be static fitness
+                int fitness_peak_uniform = 1000; // MARK: hard coded to be static fitness
+                int fitness_power = 1;
+
+                graph->SetIntAttribute("fitness_lag_duration", node, fitness_lag_uniform);
+                graph->SetIntAttribute("fitness_peak_duration", node, fitness_peak_uniform);
+                graph->SetIntAttribute("fitness_peak_value", node, fitness_power);
+            }
+        }
+
         template<typename T>
         void AssignFitnessLagDuration(Graph* graph, const T& container) {
             for(auto const& node : container) {
@@ -188,14 +200,14 @@ class ABM {
         std::ofstream timing_file_handle;
         int num_calls_to_log_write;
         const int fitness_value_min = 1;
-        const int fitness_value_max = 1000000;
+        const int fitness_value_max = 1000;
         const int fitness_lag_duration_min = 1;
         const int fitness_lag_duration_max = 7;
         const int fitness_peak_duration_min = 1;
         const int fitness_peak_duration_max = 7;
         const int fitness_alpha = -3;
         const int fitness_decay_alpha = 3;
-        const int gamma = 2;
+        const int gamma = 3;
         const int max_author_lifetime = 30;
         const int k = 2;
         int next_author_id = 0;
