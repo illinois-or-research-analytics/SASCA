@@ -331,7 +331,8 @@ void ABM::CalculateScores(std::unordered_map<int, double>& cached_results, int* 
         if (src_arr[i] < 10000) {
             current_dst = cached_results[src_arr[i]];
         } else {
-            current_dst = pow(src_arr[i], this->gamma) + 1;
+            /* current_dst = pow(src_arr[i], this->gamma) + 1; */
+            current_dst = (src_arr[i] * this->gamma) + 1;
         }
         dst_arr[i] = current_dst;
         sum += current_dst;
@@ -662,7 +663,8 @@ int ABM::main() {
     std::vector<std::pair<int, int>> new_edges_vec;
     std::unordered_map<int, double> cached_results;
     for(int i = 0; i < 10000; i ++) {
-        cached_results[i] = pow(i, this->gamma) + 1;
+        /* cached_results[i] = pow(i, this->gamma) + 1; */
+        cached_results[i] = (i * this->gamma) + 1;
     }
     Eigen::setNbThreads(1);
     for (int current_year = start_year; current_year < start_year + this->num_cycles; current_year ++) {

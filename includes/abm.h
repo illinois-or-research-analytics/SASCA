@@ -113,13 +113,9 @@ class ABM {
 
         template<typename T>
         void AssignPeakFitnessValues(Graph* graph, const T& container) {
-            /* scale_factor = 6.3742991333 # sum to 1 upto 1000 */
-            /* constant = 0.072 */
-            /* exponent = -1.634 */
-            /* min_fitness = 1 */
-            /* fitness_cap = 1000 */
-            /* def powerlaw_function(x, scale_factor, constant, exponent): */
-                /* return scale_factor * constant * np.power(x, exponent) */
+            pcg_extras::seed_seq_from<std::random_device> rand_dev;
+            pcg32 generator(rand_dev);
+            /*
             std::vector<double> fitness_probabilities;
             for(int i = this->fitness_value_min; i <  this->fitness_value_max + 1; i ++) {
                 double scale_factor = 6.3742991333;
@@ -127,16 +123,14 @@ class ABM {
                 double exponent = -1.634;
                 fitness_probabilities.push_back(scale_factor * constant * pow(i, exponent));
             }
-            /* std::random_device rand_dev; */
-            /* std::minstd_rand generator{rand_dev()}; */
-            pcg_extras::seed_seq_from<std::random_device> rand_dev;
-            pcg32 generator(rand_dev);
             std::discrete_distribution<int> int_discrete_distribution(fitness_probabilities.begin(), fitness_probabilities.end());
+            */
             for(auto const& node : container) {
+                /*
                 int current_fitness = int_discrete_distribution(generator) + 1;
                 graph->SetIntAttribute("fitness_peak_value", node, current_fitness);
+                */
                 /* graph->SetIntAttribute("fitness_peak_value", node, 1); */
-                /*
                 double fitness_uniform = this->fitness_value_uniform_distribution(generator);
                 double adjusted_alpha = this->fitness_alpha + 1;
                 double base_left = (pow(this->fitness_value_max, adjusted_alpha) - pow(this->fitness_value_min, adjusted_alpha)) * fitness_uniform;
@@ -144,7 +138,6 @@ class ABM {
                 double exponent = 1.0/adjusted_alpha;
                 int fitness_power = pow(base_left + base_right ,exponent);
                 graph->SetIntAttribute("fitness_peak_value", node, fitness_power);
-                */
             }
         }
 
@@ -195,14 +188,14 @@ class ABM {
         std::ofstream timing_file_handle;
         int num_calls_to_log_write;
         const int fitness_value_min = 1;
-        const int fitness_value_max = 1000;
+        const int fitness_value_max = 1000000;
         const int fitness_lag_duration_min = 1;
         const int fitness_lag_duration_max = 7;
         const int fitness_peak_duration_min = 1;
         const int fitness_peak_duration_max = 7;
         const int fitness_alpha = -3;
         const int fitness_decay_alpha = 3;
-        const int gamma = 3;
+        const int gamma = 2;
         const int max_author_lifetime = 30;
         const int k = 2;
         int next_author_id = 0;
