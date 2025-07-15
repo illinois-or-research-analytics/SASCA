@@ -461,8 +461,6 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
     std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map;
     one_and_two_hop_neighborhood_map[1] = std::vector<int>();
     one_and_two_hop_neighborhood_map[2] = std::vector<int>();
-    one_and_two_hop_neighborhood_map[1].reserve(this->neighborhood_sample);
-    one_and_two_hop_neighborhood_map[2].reserve(this->neighborhood_sample);
     if (this->neighborhood_sample == -1) {
         std::set<int> visited;
         int num_hops = 2;
@@ -498,6 +496,8 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
             }
         }
     } else {
+        one_and_two_hop_neighborhood_map[1].reserve(this->neighborhood_sample);
+        one_and_two_hop_neighborhood_map[2].reserve(this->neighborhood_sample);
         size_t max_neighborhood_size = this->neighborhood_sample;
         std::set<int> visited;
         pcg_extras::seed_seq_from<std::random_device> rand_dev;
@@ -534,8 +534,10 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
             std::shuffle(current_one_hop_neighborhood.begin(), current_one_hop_neighborhood.end(), generator);
             for(size_t j = 0; j < current_one_hop_neighborhood.size(); j ++) {
                 int current_two_hop_size = 0;
+                int forward_end_index = 0;
                 if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
                     current_two_hop_size += graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j]).size();
+                    forward_end_index = current_two_hop_size;
                 }
                 if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
                     current_two_hop_size += graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j]).size();
@@ -559,64 +561,31 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
                         }
                     }
                 } else {
-                    int current_two_hop_size = 0;
-                    int end_forward_index = 0;
+                    std::vector<int> to_be_sampled_neighborhood;
                     if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
-                        end_forward_index = graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j]).size();
+                        for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])) {
+                            if (!visited.contains(outgoing_neighbor)) {
+                                to_be_sampled_neighborhood.push_back(outgoing_neighbor);
+                            }
+                        }
                     }
                     if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
-                        current_two_hop_size = end_forward_index + graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j]).size();
+                        for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])) {
+                            if (!visited.contains(incoming_neighbor)) {
+                                to_be_sampled_neighborhood.push_back(incoming_neighbor);
+                            }
+                        }
                     }
-                    /* std::cerr << "current end forward index is: " + std::to_string(end_forward_index) << std::endl; */
-                    /* std::cerr << "current two hop size  is: " + std::to_string(current_two_hop_size) << std::endl; */
-                    std::vector<int> random_indices(current_two_hop_size);
-                    std::iota(random_indices.begin(), random_indices.end(), 0);
-                    pcg_extras::shuffle(random_indices.begin(), random_indices.end(), generator);
-                    for(int k = 0; k < current_two_hop_size; k ++) {
-                        int current_index = random_indices[k];
-                        /* std::cerr << "current chosen index is: " + std::to_string(current_index) << std::endl; */
-                        if (current_index < end_forward_index) {
-                            /* std::cerr << "not adjusted" << std::endl; */
-                            int current_selected_node = graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])[current_index];
-                            if (!visited.contains(current_selected_node)) {
-                                visited.insert(current_selected_node);
-                                one_and_two_hop_neighborhood_map[2].push_back(current_selected_node);
-                            }
-                        } else {
-                            current_index -= end_forward_index;
-                            /* std::cerr << "adjusted to " + std::to_string(current_index) << std::endl; */
-                            int current_selected_node = graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])[current_index];
-                            if (!visited.contains(current_selected_node)) {
-                                visited.insert(current_selected_node);
-                                one_and_two_hop_neighborhood_map[2].push_back(current_selected_node);
-                            }
-                        }
-                        if (one_and_two_hop_neighborhood_map[2].size() == max_neighborhood_size) {
-                            return one_and_two_hop_neighborhood_map;
-                        }
+                    std::vector<int> sampled_two_hop_neighborhood;
+                    std::sample(to_be_sampled_neighborhood.begin(), to_be_sampled_neighborhood.end(), std::back_inserter(sampled_two_hop_neighborhood), max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size(), generator);
+                    for(size_t k = 0; k < sampled_two_hop_neighborhood.size(); k ++) {
+                        visited.insert(sampled_two_hop_neighborhood[k]);
+                        one_and_two_hop_neighborhood_map[2].push_back(sampled_two_hop_neighborhood[k]);
+                    }
+                    if (one_and_two_hop_neighborhood_map[2].size() == max_neighborhood_size) {
+                        return one_and_two_hop_neighborhood_map;
                     }
                 }
-                /* } else { */
-                /*     size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size(); */
-                /*     std::set<int> currently_sampled; */
-                /*     std::uniform_int_distribution<int> generator_uniform_distribution{0, (int)(current_two_hop_neighborhood.size() - 1)}; */
-                /*     while(currently_sampled.size() != num_to_insert) { */
-                /*         int current_random_index = generator_uniform_distribution(generator); */
-                /*         currently_sampled.insert(current_two_hop_neighborhood[current_random_index]); */
-                /*     } */
-                /*     std::copy(currently_sampled.begin(), currently_sampled.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2])); */
-                /*     return one_and_two_hop_neighborhood_map; */
-                /* } */
-                /* if (one_and_two_hop_neighborhood_map[2].size() < max_neighborhood_size) { */
-                /*     return one_and_two_hop_neighborhood_map; */
-                /* } */
-                /* } else { */
-                /*     size_t num_to_insert = max_neighborhood_size - one_and_two_hop_neighborhood_map[2].size(); */
-                /*     /1* std::shuffle(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), generator); *1/ */
-                /*     /1* std::copy(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.begin() + num_to_insert, std::back_inserter(one_and_two_hop_neighborhood_map[2])); *1/ */
-                /*     std::sample(current_two_hop_neighborhood.begin(), current_two_hop_neighborhood.end(), std::back_inserter(one_and_two_hop_neighborhood_map[2]), num_to_insert, generator); */
-                /*     return one_and_two_hop_neighborhood_map; */
-                /* } */
             }
         }
     }
