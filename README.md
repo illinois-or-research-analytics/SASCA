@@ -1,5 +1,8 @@
 # ABM
 
+## One time setup
+run the `setup.sh` script to get Eigen and pcg-cpp setup.
+
 ## How to run
 The general command is given below.
 ```
