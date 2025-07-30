@@ -236,6 +236,12 @@ void ABM::PopulateAlphaArr(double* alpha_arr, int len) {
             double alpha_uniform = this->alpha_uniform_distribution(generator);
             alpha_arr[i] = alpha_uniform;
         }
+    } else if(this->minimum_alpha > 0) {
+        for(int i = 0; i < len; i ++) {
+            std::uniform_real_distribution<double> minimum_alpha_uniform_distribution{minimum_alpha, 1};
+            double alpha_uniform = minimum_alpha_uniform_distribution(generator);
+            alpha_arr[i] = alpha_uniform;
+        }
     } else {
         for(int i = 0; i < len; i ++) {
             alpha_arr[i] = this->alpha;
@@ -255,6 +261,39 @@ void ABM::PopulateWeightArrs(double* pa_weight_arr, double* rec_weight_arr, doub
             pa_weight_arr[i] = (double)pa_uniform / sum;
             rec_weight_arr[i] = (double)rec_uniform / sum;
             fit_weight_arr[i] = (double)fit_uniform / sum;
+        }
+    } else if (this->minimum_preferential_weight > 0) {
+        std::uniform_real_distribution<double> minimum_weights_uniform_distribution{this->minimum_preferential_weight, 1};
+        for(int i = 0; i < len; i ++) {
+            double pa_uniform = minimum_weights_uniform_distribution(generator);
+            double rec_uniform = this->weights_uniform_distribution(generator);
+            double fit_uniform = this->weights_uniform_distribution(generator);
+            double sum = (rec_uniform + fit_uniform);
+            pa_weight_arr[i] = pa_uniform;
+            rec_weight_arr[i] = (1 - pa_uniform) * (double)rec_uniform / sum;
+            fit_weight_arr[i] = (1 - pa_uniform) * (double)fit_uniform / sum;
+        }
+    } else if (this->minimum_recency_weight > 0) {
+        std::uniform_real_distribution<double> minimum_weights_uniform_distribution{this->minimum_recency_weight, 1};
+        for(int i = 0; i < len; i ++) {
+            double pa_uniform = this->weights_uniform_distribution(generator);
+            double rec_uniform = minimum_weights_uniform_distribution(generator);
+            double fit_uniform = this->weights_uniform_distribution(generator);
+            double sum = (pa_uniform + fit_uniform);
+            pa_weight_arr[i] = (1 - rec_uniform) * (double)pa_uniform / sum;
+            rec_weight_arr[i] = rec_uniform;
+            fit_weight_arr[i] = (1 - rec_uniform) * (double)fit_uniform / sum;
+        }
+    } else if (this->minimum_fitness_weight > 0) {
+        std::uniform_real_distribution<double> minimum_weights_uniform_distribution{this->minimum_fitness_weight, 1};
+        for(int i = 0; i < len; i ++) {
+            double pa_uniform = this->weights_uniform_distribution(generator);
+            double rec_uniform = this->weights_uniform_distribution(generator);
+            double fit_uniform = minimum_weights_uniform_distribution(generator);
+            double sum = (pa_uniform + rec_uniform);
+            pa_weight_arr[i] = (1 - fit_uniform) * (double)pa_uniform / sum;
+            rec_weight_arr[i] = (1 - fit_uniform) * (double)rec_uniform / sum;
+            fit_weight_arr[i] = fit_uniform;
         }
     } else {
         for(int i = 0; i < len; i ++) {
@@ -323,7 +362,27 @@ void ABM::UpdateGraphAttributesGeneratorNodes(Graph* graph, int new_node, const 
     graph->SetStringAttribute("generator_node_string", new_node, generator_node_string);
 }
 
-void ABM::CalculateScores(std::unordered_map<int, double>& cached_results, int* src_arr, double* dst_arr, int len) {
+void ABM::CalculateTanhScores(std::unordered_map<int, double>& cached_results, int* src_arr, double* dst_arr, int len) {
+    double sum = 0;
+    #pragma omp parallel for reduction(+:sum)
+    for(int i = 0; i < len; i ++) {
+        double current_dst = -1;
+        if (src_arr[i] < 10000) {
+            current_dst = cached_results[src_arr[i]];
+        } else {
+            current_dst = this->peak_constant * std::tanh((pow(src_arr[i], 3)/this->delay_constant)*(1/this->peak_constant));
+            /* current_dst = (src_arr[i] * this->gamma) + 1; */
+        }
+        dst_arr[i] = current_dst;
+        sum += current_dst;
+    }
+    #pragma omp parallel for
+    for(int i = 0; i < len; i ++) {
+        dst_arr[i] /= sum;
+    }
+}
+
+void ABM::CalculateExpScores(std::unordered_map<int, double>& cached_results, int* src_arr, double* dst_arr, int len) {
     double sum = 0;
     #pragma omp parallel for reduction(+:sum)
     for(int i = 0; i < len; i ++) {
@@ -457,7 +516,7 @@ std::vector<int> ABM::GetGeneratorNodes(Graph* graph, const std::unordered_map<i
     return generator_nodes;
 }
 
-std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping) {
+std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph* graph, int current_year, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping) {
     std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map;
     one_and_two_hop_neighborhood_map[1] = std::vector<int>();
     one_and_two_hop_neighborhood_map[2] = std::vector<int>();
@@ -548,7 +607,9 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
                         for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])) {
                             if (!visited.contains(outgoing_neighbor)) {
                                 visited.insert(outgoing_neighbor);
-                                one_and_two_hop_neighborhood_map[2].push_back(outgoing_neighbor);
+                                if (current_year - graph->GetIntAttribute("year", outgoing_neighbor) <= this->recency_limit) {
+                                    one_and_two_hop_neighborhood_map[2].push_back(outgoing_neighbor);
+                                }
                             }
                         }
                     }
@@ -556,7 +617,9 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
                         for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])) {
                             if (!visited.contains(incoming_neighbor)) {
                                 visited.insert(incoming_neighbor);
-                                one_and_two_hop_neighborhood_map[2].push_back(incoming_neighbor);
+                                if (current_year - graph->GetIntAttribute("year", incoming_neighbor) <= this->recency_limit) {
+                                    one_and_two_hop_neighborhood_map[2].push_back(incoming_neighbor);
+                                }
                             }
                         }
                     }
@@ -565,14 +628,18 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhood(Graph
                     if (graph->GetOutDegree(current_one_hop_neighborhood[j]) > 0) {
                         for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(current_one_hop_neighborhood[j])) {
                             if (!visited.contains(outgoing_neighbor)) {
-                                to_be_sampled_neighborhood.push_back(outgoing_neighbor);
+                                if (current_year - graph->GetIntAttribute("year", outgoing_neighbor) <= this->recency_limit) {
+                                    to_be_sampled_neighborhood.push_back(outgoing_neighbor);
+                                }
                             }
                         }
                     }
                     if (graph->GetInDegree(current_one_hop_neighborhood[j]) > 0) {
                         for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(current_one_hop_neighborhood[j])) {
                             if (!visited.contains(incoming_neighbor)) {
-                                to_be_sampled_neighborhood.push_back(incoming_neighbor);
+                                if (current_year - graph->GetIntAttribute("year", incoming_neighbor) <= this->recency_limit) {
+                                    to_be_sampled_neighborhood.push_back(incoming_neighbor);
+                                }
                             }
                         }
                     }
@@ -655,8 +722,8 @@ std::unordered_map<int, std::vector<int>> ABM::GetOneAndTwoHopNeighborhoodFromMa
 int ABM::main() {
     Graph* graph = new Graph(this->edgelist, this->nodelist);
     this->WriteToLogFile("loaded graph", Log::info);
-    /* this->InitializeSeedFitness(graph); */
-    this->InitializeFitness(graph);
+    this->InitializeSeedFitness(graph);
+    /* this->InitializeFitness(graph); */
 
     /* node ids to continous integer from 0 */
     std::unordered_map<int, int> continuous_node_mapping = this->BuildContinuousNodeMapping(graph);
@@ -694,9 +761,14 @@ int ABM::main() {
     std::vector<int> new_nodes_vec;
     std::set<int> same_year_source_nodes;
     std::vector<std::pair<int, int>> new_edges_vec;
-    std::unordered_map<int, double> cached_results;
+    std::unordered_map<int, double> tanh_cached_results;
     for(int i = 0; i < 10000; i ++) {
-        cached_results[i] = pow(i, this->gamma) + 1;
+        tanh_cached_results[i] = this->peak_constant * std::tanh((pow(i, 3)/this->delay_constant)*(1/this->peak_constant));
+        /* cached_results[i] = (i * this->gamma) + 1; */
+    }
+    std::unordered_map<int, double> exp_cached_results;
+    for(int i = 0; i < 10000; i ++) {
+        exp_cached_results[i] = pow(i, this->gamma) + 1;
         /* cached_results[i] = (i * this->gamma) + 1; */
     }
     Eigen::setNbThreads(1);
@@ -710,9 +782,11 @@ int ABM::main() {
         this->LogTime(current_year, "Fill fitness array");
         this->FillRecencyArr(graph, reverse_continuous_node_mapping, current_year, recency_arr);
         this->LogTime(current_year, "Fill recency array");
-        this->CalculateScores(cached_results, in_degree_arr, pa_arr, current_graph_size);
+        this->CalculateTanhScores(tanh_cached_results, in_degree_arr, pa_arr, current_graph_size);
+        /* this->CalculateExpScores(exp_cached_results, in_degree_arr, pa_arr, current_graph_size); */
         this->LogTime(current_year, "Process in-degree array");
-        this->CalculateScores(cached_results, fitness_arr, fit_arr, current_graph_size);
+        this->CalculateTanhScores(tanh_cached_results, fitness_arr, fit_arr, current_graph_size);
+        /* this->CalculateExpScores(exp_cached_results, fitness_arr, fit_arr, current_graph_size); */
         this->LogTime(current_year, "Process fitness array");
 
         /* initialize new nodes */
@@ -754,7 +828,7 @@ int ABM::main() {
             double fit_weight = fit_weight_arr[weight_arr_index];
             double alpha = alpha_arr[weight_arr_index];
             std::vector<int> generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node);
-            std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, generator_nodes, reverse_continuous_node_mapping);
+            std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, current_year, generator_nodes, reverse_continuous_node_mapping);
             sampled_neighborhood_sizes_map[i] = {one_and_two_hop_neighborhood_map[1].size(), one_and_two_hop_neighborhood_map[2].size()};
             local_prev_time = this->LocalLogTime(local_parallel_stage_time_vec, local_prev_time, "retrieve one and two hop neighborhoods");
             int num_generator_node_citation = generator_nodes.size(); // should be 1 for now

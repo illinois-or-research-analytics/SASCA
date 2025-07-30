@@ -24,7 +24,7 @@ enum Log {info, debug, error = -1};
 
 class ABM {
     public:
-        ABM(std::string edgelist, std::string nodelist, std::string out_degree_bag, std::string recency_probabilities, std::string planted_nodes, double alpha, double fully_random_citations, double preferential_weight, double recency_weight, double fitness_weight, double growth_rate, int num_cycles, double same_year_proportion, int neighborhood_sample, std::string output_file, std::string auxiliary_information_file, std::string log_file, int num_processors, int log_level) : edgelist(edgelist), nodelist(nodelist), out_degree_bag(out_degree_bag), recency_probabilities(recency_probabilities), planted_nodes(planted_nodes), alpha(alpha), fully_random_citations(fully_random_citations), preferential_weight(preferential_weight), recency_weight(recency_weight), fitness_weight(fitness_weight), growth_rate(growth_rate), num_cycles(num_cycles), same_year_proportion(same_year_proportion), neighborhood_sample(neighborhood_sample), output_file(output_file), auxiliary_information_file(auxiliary_information_file), log_file(log_file), num_processors(num_processors), log_level(log_level) {
+        ABM(std::string edgelist, std::string nodelist, std::string out_degree_bag, std::string recency_probabilities, std::string planted_nodes, double alpha, double minimum_alpha, double fully_random_citations, double preferential_weight, double recency_weight, double fitness_weight, double minimum_preferential_weight, double minimum_recency_weight, double minimum_fitness_weight, double growth_rate, int num_cycles, double same_year_proportion, int neighborhood_sample, std::string output_file, std::string auxiliary_information_file, std::string log_file, int num_processors, int log_level) : edgelist(edgelist), nodelist(nodelist), out_degree_bag(out_degree_bag), recency_probabilities(recency_probabilities), planted_nodes(planted_nodes), alpha(alpha), minimum_alpha(minimum_alpha), fully_random_citations(fully_random_citations), preferential_weight(preferential_weight), recency_weight(recency_weight), fitness_weight(fitness_weight), minimum_preferential_weight(minimum_preferential_weight), minimum_recency_weight(minimum_recency_weight), minimum_fitness_weight(minimum_fitness_weight), growth_rate(growth_rate), num_cycles(num_cycles), same_year_proportion(same_year_proportion), neighborhood_sample(neighborhood_sample), output_file(output_file), auxiliary_information_file(auxiliary_information_file), log_file(log_file), num_processors(num_processors), log_level(log_level) {
             if(this->log_level > -1) {
                 this->start_time = std::chrono::steady_clock::now();
                 this->log_file_handle.open(this->log_file);
@@ -57,7 +57,7 @@ class ABM {
         std::vector<int> GetGeneratorNodes(Graph* graph, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
         std::vector<int> GetGraphAttributesGeneratorNodes(Graph* graph, int new_node) const;
         std::vector<int> GetNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
-        std::unordered_map<int, std::vector<int>> GetOneAndTwoHopNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
+        std::unordered_map<int, std::vector<int>> GetOneAndTwoHopNeighborhood(Graph* graph, int current_year, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
         void FillInDegreeArr(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, int* in_degree_arr);
         void InitializeFitness(Graph* graph);
         void FillFitnessArr(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, int current_year, int* fitness_arr);
@@ -67,7 +67,8 @@ class ABM {
         int GetMaxYear(Graph* graph);
         int GetMaxNode(Graph* graph);
         void PopulateOutDegreeArr(int* out_degree_arr, int len);
-        void CalculateScores(std::unordered_map<int, double>& cached_results, int* src_arr, double* dst_arr, int len);
+        void CalculateTanhScores(std::unordered_map<int, double>& cached_results, int* src_arr, double* dst_arr, int len);
+        void CalculateExpScores(std::unordered_map<int, double>& cached_results, int* src_arr, double* dst_arr, int len);
         void SampleFromNeighborhoods(std::unordered_map<int, std::vector<int>>& one_and_two_hop_neighborhood_map, int neighborhood_size_threshold, int max_neighborhood_size);
         int MakeCitations(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations);
         void FillSameYearSourceNodes(std::set<int>& same_year_source_nodes, int current_year_new_nodes);
@@ -127,6 +128,7 @@ class ABM {
         void AssignPeakFitnessValues(Graph* graph, const T& container) {
             pcg_extras::seed_seq_from<std::random_device> rand_dev;
             pcg32 generator(rand_dev);
+            /*
             std::vector<double> fitness_probabilities;
             for(int i = this->fitness_value_min; i <  this->fitness_value_max + 1; i ++) {
                 double scale_factor = 6.3742991333;
@@ -135,11 +137,13 @@ class ABM {
                 fitness_probabilities.push_back(scale_factor * constant * pow(i, exponent));
             }
             std::discrete_distribution<int> int_discrete_distribution(fitness_probabilities.begin(), fitness_probabilities.end());
+            */
             for(auto const& node : container) {
+                /*
                 int current_fitness = int_discrete_distribution(generator) + 1;
                 graph->SetIntAttribute("fitness_peak_value", node, current_fitness);
+                */
                 /* graph->SetIntAttribute("fitness_peak_value", node, 1); */
-                /*
                 double fitness_uniform = this->fitness_value_uniform_distribution(generator);
                 double adjusted_alpha = this->fitness_alpha + 1;
                 double base_left = (pow(this->fitness_value_max, adjusted_alpha) - pow(this->fitness_value_min, adjusted_alpha)) * fitness_uniform;
@@ -147,7 +151,6 @@ class ABM {
                 double exponent = 1.0/adjusted_alpha;
                 int fitness_power = pow(base_left + base_right ,exponent);
                 graph->SetIntAttribute("fitness_peak_value", node, fitness_power);
-                */
             }
         }
 
@@ -180,10 +183,14 @@ class ABM {
         std::string recency_probabilities;
         std::string planted_nodes;
         double alpha;
+        double minimum_alpha;
         double fully_random_citations;
         double preferential_weight;
         double recency_weight;
         double fitness_weight;
+        double minimum_preferential_weight;
+        double minimum_recency_weight;
+        double minimum_fitness_weight;
         double growth_rate;
         int num_cycles;
         double same_year_proportion;
@@ -208,6 +215,9 @@ class ABM {
         const int gamma = 3;
         const int max_author_lifetime = 30;
         const int k = 2;
+        const int recency_limit = 3;
+        const int peak_constant = 2;
+        const int delay_constant = 500;
         int next_author_id = 0;
         std::uniform_real_distribution<double> fitness_value_uniform_distribution{0, 1};
         std::uniform_real_distribution<double> weights_uniform_distribution{0, 1};
