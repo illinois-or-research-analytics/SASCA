@@ -57,7 +57,7 @@ class ABM {
         std::vector<int> GetGeneratorNodes(Graph* graph, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
         std::vector<int> GetGraphAttributesGeneratorNodes(Graph* graph, int new_node) const;
         std::vector<int> GetNeighborhood(Graph* graph, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
-        std::unordered_map<int, std::vector<int>> GetOneAndTwoHopNeighborhood(Graph* graph, int current_year, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping);
+        std::unordered_map<int, std::vector<int>> GetOneAndTwoHopNeighborhood(Graph* graph, int current_year, const std::vector<int>& generator_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping, int num_hops);
         void FillInDegreeArr(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, int* in_degree_arr);
         void InitializeFitness(Graph* graph);
         void FillFitnessArr(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, int current_year, int* fitness_arr);
@@ -73,7 +73,7 @@ class ABM {
         int MakeCitations(Graph* graph, const std::unordered_map<int, int>& continuous_node_mapping, int current_year, const std::vector<int>& candidate_nodes, int* citations, double* pa_arr, double* recency_arr, double* fit_arr, double pa_weight, double rec_weight, double fit_weight, int current_graph_size, int num_citations);
         void FillSameYearSourceNodes(std::set<int>& same_year_source_nodes, int current_year_new_nodes);
         int MakeUniformRandomCitations(Graph* graph, const std::unordered_map<int, int>& reverse_continuous_node_mapping, std::vector<int>& generator_nodes, int* citations, int num_cited_so_far, int num_citations);
-        int MakeSameYearCitations(int num_new_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping, int* citations, int current_graph_size);
+        int MakeSameYearCitations(const std::set<int>& same_year_source_nodes, int num_new_nodes, const std::unordered_map<int, int>& reverse_continuous_node_mapping, int* citations, int current_graph_size);
         void UpdateGraphAttributesWeights(Graph* graph, int next_node_id, double* pa_weight_arr, double* rec_weight_arr, double* fit_weight_arr, int len);
         void UpdateGraphAttributesAlphas(Graph* graph, int next_node_id, double* alpha_arr, int len);
         void UpdateGraphAttributesOutDegrees(Graph* graph, int next_node_id, int* out_degree_arr, int len);
@@ -129,12 +129,20 @@ class ABM {
             pcg_extras::seed_seq_from<std::random_device> rand_dev;
             pcg32 generator(rand_dev);
             std::vector<double> fitness_probabilities;
+            double fitness_probabilities_sum = 0.0;
             for(int i = this->fitness_value_min; i <  this->fitness_value_max + 1; i ++) {
                 double scale_factor = 6.3742991333;
                 double constant = 0.072;
                 double exponent = -1.634;
-                fitness_probabilities.push_back(scale_factor * constant * pow(i, exponent));
+                double current_fitness_probability = scale_factor * constant * pow(i, exponent);
+                fitness_probabilities.push_back(current_fitness_probability);
+                fitness_probabilities_sum += current_fitness_probability;
             }
+
+            for(size_t i = 0; i < fitness_probabilities.size(); i ++) {
+                fitness_probabilities[i] /= fitness_probabilities_sum;
+            }
+
             std::discrete_distribution<int> int_discrete_distribution(fitness_probabilities.begin(), fitness_probabilities.end());
             for(auto const& node : container) {
                 int current_fitness = int_discrete_distribution(generator) + 1;
@@ -154,7 +162,11 @@ class ABM {
 
         void PlantNodes(Graph* graph, std::vector<int> new_nodes_vec, int current_year) {
             /* std::unordered_map<int, std::unordered_map<int, std::unordered_map<std::string, int>>> planted_nodes_map; */
-            int planted_so_far = 0;
+            pcg_extras::seed_seq_from<std::random_device> rand_dev;
+            pcg32 generator(rand_dev);
+            std::unordered_set<int> selected;
+            /* int planted_so_far = 0; */
+            std::uniform_int_distribution<int> new_nodes_distribution{0, new_nodes_vec.size() - 1};
             if (this->planted_nodes_map.count(current_year)) {
                 std::unordered_map<int, std::unordered_map<std::string, int>> current_year_map = this->planted_nodes_map.at(current_year);
                 for(auto const& [line_no, line_map] : current_year_map) {
@@ -162,13 +174,18 @@ class ABM {
                     int current_fitness_lag_duration = line_map.at("fitness_lag_duration");
                     int current_fitness_peak_value = line_map.at("fitness_peak_value");
                     int current_fitness_peak_duration = line_map.at("fitness_peak_duration");
-                    for(int i = planted_so_far; i < planted_so_far + current_node_type_count; i ++) {
-                        graph->SetIntAttribute("fitness_lag_duration", new_nodes_vec.at(i), current_fitness_lag_duration);
-                        graph->SetIntAttribute("fitness_peak_value", new_nodes_vec.at(i), current_fitness_peak_value);
-                        graph->SetIntAttribute("fitness_peak_duration", new_nodes_vec.at(i), current_fitness_peak_duration);
-                        graph->SetIntAttribute("planted_nodes_line_number", new_nodes_vec.at(i), line_no);
+                    for(int i = 0; i < current_node_type_count; i ++) {
+                        int chosen_agent_index = new_nodes_distribution(generator);
+                        while(selected.contains(chosen_agent_index)) {
+                            chosen_agent_index = new_nodes_distribution(generator);
+                        }
+                        selected.insert(chosen_agent_index);
+                        graph->SetIntAttribute("fitness_lag_duration", new_nodes_vec.at(chosen_agent_index), current_fitness_lag_duration);
+                        graph->SetIntAttribute("fitness_peak_value", new_nodes_vec.at(chosen_agent_index), current_fitness_peak_value);
+                        graph->SetIntAttribute("fitness_peak_duration", new_nodes_vec.at(chosen_agent_index), current_fitness_peak_duration);
+                        graph->SetIntAttribute("planted_nodes_line_number", new_nodes_vec.at(chosen_agent_index), line_no);
                     }
-                    planted_so_far += current_node_type_count;
+                    /* planted_so_far += current_node_type_count; */
                 }
             }
         }
@@ -224,7 +241,8 @@ class ABM {
         std::uniform_int_distribution<int> fitness_lag_duration_uniform_distribution{fitness_lag_duration_min, fitness_lag_duration_max};
         std::uniform_int_distribution<int> fitness_peak_duration_uniform_distribution{fitness_peak_duration_min, fitness_peak_duration_max};
         std::vector<int> out_degree_bag_vec;
-        std::unordered_map<int, double> recency_probabilities_map;
+        /* std::unordered_map<int, double> recency_probabilities_map; */
+        std::unordered_map<int, int> recency_counts_map;
         std::unordered_map<int, std::unordered_map<int, std::unordered_map<std::string, int>>> planted_nodes_map;
         std::unordered_map<int, std::vector<std::pair<std::string, int>>> timing_map;
         std::chrono::time_point<std::chrono::steady_clock> prev_time;
