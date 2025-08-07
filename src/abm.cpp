@@ -933,44 +933,25 @@ int ABM::main() {
             double fit_weight = fit_weight_arr[weight_arr_index];
             double alpha = alpha_arr[weight_arr_index];
             std::vector<int> generator_nodes = this->GetGraphAttributesGeneratorNodes(graph, new_node);
-            /* std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, current_year, generator_nodes, reverse_continuous_node_mapping, 1); */
-            // MARK: begin custom
-            std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map;
-            if (graph->GetOutDegree(generator_nodes.at(0)) > 0) {
-                for(auto const& outgoing_neighbor : graph->GetForwardAdjMap().at(generator_nodes.at(0))) {
-                    one_and_two_hop_neighborhood_map[1].push_back(outgoing_neighbor);
-                }
-            }
-            if (graph->GetInDegree(generator_nodes.at(0)) > 0) {
-                for(auto const& incoming_neighbor : graph->GetBackwardAdjMap().at(generator_nodes.at(0))) {
-                    one_and_two_hop_neighborhood_map[1].push_back(incoming_neighbor);
-                }
-            }
-            // end custom
-            /* std::cerr<< "initial one and two hop sizes: " << std::to_string(one_and_two_hop_neighborhood_map[1].size()) << " and " << std::to_string(one_and_two_hop_neighborhood_map[2].size()) <<std::endl; */
-            std::unordered_set<int> one_hop_neighborhood_set(one_and_two_hop_neighborhood_map[1].begin(), one_and_two_hop_neighborhood_map[1].end());
-            one_hop_neighborhood_set.insert(generator_nodes[0]);
-            for(const auto& complement_node_search : graph->GetNodeSet()) {
-                if (!one_hop_neighborhood_set.contains(complement_node_search)) {
-                    one_and_two_hop_neighborhood_map[2].push_back(complement_node_search);
-                }
-            }
-            /* std::cerr<< "after complement one and two hop sizes: " << std::to_string(one_and_two_hop_neighborhood_map[1].size()) << " and " << std::to_string(one_and_two_hop_neighborhood_map[2].size()) <<std::endl; */
+            std::unordered_map<int, std::vector<int>> one_and_two_hop_neighborhood_map = this->GetOneAndTwoHopNeighborhood(graph, current_year, generator_nodes, reverse_continuous_node_mapping, 2);
             sampled_neighborhood_sizes_map[i] = {one_and_two_hop_neighborhood_map[1].size(), one_and_two_hop_neighborhood_map[2].size()};
             local_prev_time = this->LocalLogTime(local_parallel_stage_time_vec, local_prev_time, "retrieve one and two hop neighborhoods");
             int num_generator_node_citation = generator_nodes.size(); // should be 1 for now
             int same_year_citation = same_year_source_nodes.count(i); // could be 0 or 1
+            int num_fully_random_cited_reserved = std::floor(this->fully_random_citations * out_degree_arr[weight_arr_index]); // e.g., 5% of out-degree. some small number
 
             // now the number of things to cite from distance 1 is the remaining citations * alpha. Call this remaining citations R for later.
             // unless distance 1 neighborhood is too small
-            /* int num_citations_inside = std::ceil((out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation) * alpha); */
-            int num_citations_inside = int((out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation) * alpha);
+            int num_citations_inside = std::ceil((out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_fully_random_cited_reserved) * alpha);
             num_citations_inside = std::min(num_citations_inside, (int)one_and_two_hop_neighborhood_map[1].size());
 
             // now the number of things to cite from distance 2 is the remaining citations
-            int num_citations_outside = out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_citations_inside;
-            num_citations_outside = std::min(num_citations_outside, (int)one_and_two_hop_neighborhood_map[2].size());
             // unless distance 2 neighborhood is too small
+            int num_citations_outside = out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_fully_random_cited_reserved - num_citations_inside;
+            num_citations_outside = std::min(num_citations_outside, (int)one_and_two_hop_neighborhood_map[2].size());
+
+            // if it turns out that the 2-hop neighborhood (including 1 and 2) is small than R from earlier, then the leftover citations get cited randomly from the graph
+            int num_fully_random_cited = out_degree_arr[weight_arr_index] - num_generator_node_citation - same_year_citation - num_citations_inside - num_citations_outside;
 
             // if it turns out that the 2-hop neighborhood (including 1 and 2) is small than R from earlier, then the leftover citations get cited randomly from the graph
             int num_actually_cited = 0;
@@ -981,10 +962,10 @@ int ABM::main() {
             local_prev_time = this->LocalLogTime(local_parallel_stage_time_vec, local_prev_time, "make same year citations");
             num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[1], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_inside);
             local_prev_time = this->LocalLogTime(local_parallel_stage_time_vec, local_prev_time, "make 1-hop citations");
-
-
             num_actually_cited += this->MakeCitations(graph, continuous_node_mapping, current_year, one_and_two_hop_neighborhood_map[2], citations + num_actually_cited, pa_arr, recency_arr, fit_arr, pa_weight, rec_weight, fit_weight, current_graph_size, num_citations_outside);
             local_prev_time = this->LocalLogTime(local_parallel_stage_time_vec, local_prev_time, "make 2-hop citations");
+            num_actually_cited += this->MakeUniformRandomCitations(graph, reverse_continuous_node_mapping, generator_nodes, citations, num_actually_cited, num_fully_random_cited);
+            local_prev_time = this->LocalLogTime(local_parallel_stage_time_vec, local_prev_time, "make random citations");
 
             for(size_t j = 0; j < generator_nodes.size(); j ++) {
                 local_new_edges_vec.push_back({new_node, generator_nodes[j]});
@@ -1006,6 +987,7 @@ int ABM::main() {
         this->LogTime(current_year, "make same year citations", per_stage_time_map["make same year citations"]);
         this->LogTime(current_year, "make 1-hop citations", per_stage_time_map["make 1-hop citations"]);
         this->LogTime(current_year, "make 2-hop citations", per_stage_time_map["make 2-hop citations"]);
+        this->LogTime(current_year, "make random citations", per_stage_time_map["make random citations"]);
         this->LogTime(current_year, "record edges", per_stage_time_map["record edges"]);
         for(size_t i = 0; i < new_edges_vec.size(); i ++) {
             int new_node = new_edges_vec[i].first;
