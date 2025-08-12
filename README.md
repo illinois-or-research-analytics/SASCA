@@ -1,4 +1,4 @@
-# SASCA: Scalable Agent-based Simulator for Citation Analysis
+# SASCA: Scalable Agent-based Simulator for Citation Analysis (includes SASCA-s)
 
 ## One time setup
 run the `setup.sh` script to locally install [Eigen](https://eigen.tuxfamily.org/index.php?title=Main_Page) and [PCG](https://www.pcg-random.org/).
