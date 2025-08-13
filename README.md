@@ -1,7 +1,18 @@
 # SASCA: Scalable Agent-based Simulator for Citation Analysis (includes SASCA-s)
+SASCA, or Scalable Agent-based Simulator for Citation Analysis, as the name suggests, is a scalable agent-based modeling simulator that can begin with a small seed network and simulate an exponential network growth to reach sizes of 100 million nodes and more. Currently, SASCA is implemented in modern C++ and can easily be parallelized across hundreds of cores.
+
+## Dependencies
+- C++ >= 20
+- OpenMP >= 4.0
+- cmake >= 3.23
+- Eigen3 (can be locally instaleld via [setup.sh](setup.sh))
+- PCG (can be locally instaleld via [setup.sh](setup.sh))
 
 ## One time setup
-run the `setup.sh` script to locally install [Eigen](https://eigen.tuxfamily.org/index.php?title=Main_Page) and [PCG](https://www.pcg-random.org/).
+Run [setup.sh](setup.sh) to locally install [Eigen](https://eigen.tuxfamily.org/index.php?title=Main_Page) and [PCG](https://www.pcg-random.org/). Alternatively, just ensure that both Eigen and PCG libraries are discoverable by cmake.
+
+## How to build
+SASCA is a standard cmake project. [easy_build_and_compile.sh](easy_build_and_compile.sh) is provided for user convenience.
 
 ## How to run
 The general command is given below.
